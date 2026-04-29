@@ -98,6 +98,20 @@ CREATE TABLE purchase_order_line (
         REFERENCES product(product_id)
 );
 
+-- TABLE : STOCK_CONTROLLER
+CREATE TABLE stock_controller (
+    controller_id   SERIAL PRIMARY KEY,
+    user_id         INTEGER UNIQUE NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE
+);
+
+-- TABLE : PURCHASE_ORDER
+CREATE TABLE purchase_order (
+    order_id        SERIAL PRIMARY KEY,
+    supplier_id     INTEGER NOT NULL REFERENCES supplier(supplier_id) ON DELETE RESTRICT,
+    order_date      DATE DEFAULT CURRENT_DATE,
+    delivery_date   DATE,
+    status          VARCHAR(50) DEFAULT 'Pending'   -- Pending, Shipped, Delivered, Cancelled
+);
 
 -- SAMPLE DATA
 
