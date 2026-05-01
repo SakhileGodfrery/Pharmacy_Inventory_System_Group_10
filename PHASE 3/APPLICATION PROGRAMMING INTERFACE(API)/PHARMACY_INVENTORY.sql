@@ -128,6 +128,42 @@ CREATE TABLE PRESCRIPTION (
     CONSTRAINT chk_issue_date CHECK ( date_issued <= CURRENT_DATE )
     );
 
+-- TABLE : PRODUCT
+CREATE TABLE PRODUCT (
+    product_id SERIAL PRIMARY KEY,
+    product_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    dosage VARCHAR(50),
+    category VARCHAR(50),
+    price NUMERIC(10,2) NOT NULL,
+    supplier_id INT,
+    reorder_qty INT,
+    storage_req VARCHAR(100),
+    CONSTRAINT fk_product_supplier
+        FOREIGN KEY (supplier_id)
+        REFERENCES supplier(supplier_id)
+        ON DELETE SET NULL
+);
+
+-- TABLE : TRANSACTION
+CREATE TABLE TRANSACTION (
+    transaction_id SERIAL PRIMARY KEY,
+    transaction_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    pharmacist_id INT NOT NULL,
+    patient_id INT NOT NULL,
+    total_amount NUMERIC(10,2) NOT NULL,
+    payment_method VARCHAR(50),
+    status VARCHAR(30) DEFAULT 'Completed',
+    CONSTRAINT fk_transaction_pharmacist
+        FOREIGN KEY (pharmacist_id)
+        REFERENCES pharmacist(pharmacist_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_transaction_patient
+        FOREIGN KEY (patient_id)
+        REFERENCES patient(patient_id)
+        ON DELETE CASCADE
+);
+
 -- SAMPLE DATA
 
 -- Insert Users 
