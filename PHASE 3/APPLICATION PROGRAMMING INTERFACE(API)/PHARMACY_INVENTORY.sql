@@ -98,6 +98,35 @@ CREATE TABLE purchase_order_line (
         REFERENCES product(product_id)
 );
 
+-- TABLE : PATIENT
+CREATE TABLE PATIENT (
+   patient_id SERIAL PRIMARY KEY ,
+   user_id INT NOT NULL ,
+   first_name VARCHAR (50) NOT NULL ,
+   last_name VARCHAR (50) NOT NULL ,
+   date_of_birth DATE NOT NULL ,
+   contact_number VARCHAR (15) ,
+   email VARCHAR (100) UNIQUE ,
+   passport_id_number VARCHAR (20) UNIQUE NOT NULL ,
+    FOREIGN KEY ( user_id ) REFERENCES USER_ACCOUNT ( user_id ) ,
+    CONSTRAINT chk_dob CHECK ( date_of_birth <= CURRENT_DATE )
+    CONSTRAINT chk_patient_name
+CHECK ( first_name <> ’’ AND last_name <> ’’)
+) ;
+
+-- TABLE : PRESCRIPTION
+CREATE TABLE PRESCRIPTION (
+    prescription_id SERIAL PRIMARY KEY ,
+    patient_id INT NOT NULL ,
+    doctor_name VARCHAR (100) NOT NULL ,
+    clinic_hospital_name VARCHAR (100) ,
+    date_issued DATE DEFAULT CURRENT_DATE ,
+    status VARCHAR (20) DEFAULT ’Pending ’,
+    FOREIGN KEY ( patient_id ) REFERENCES PATIENT ( patient_id ) ON DELETE CASCADE ,
+    CONSTRAINT chk_status CHECK ( status IN (’Pending ’, ’Dispensed ’, ’Cancelled ’)) ,
+    CONSTRAINT chk_expiry_after_issued CHECK ( date_expires > date_issued ) ,
+    CONSTRAINT chk_issue_date CHECK ( date_issued <= CURRENT_DATE )
+    );
 
 -- SAMPLE DATA
 
