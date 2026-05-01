@@ -1,6 +1,6 @@
 -- TABLE : USER 
-CREATE TABLE app_user (
-    user_id         SERIAL PRIMARY KEY,
+CREATE TABLE users (
+    users_id         SERIAL PRIMARY KEY,
     first_name      VARCHAR(50) NOT NULL,
     last_name       VARCHAR(50) NOT NULL,
     dob             DATE NOT NULL,
@@ -33,22 +33,6 @@ CREATE TABLE supplier (
     status          VARCHAR(20) DEFAULT 'ACTIVE',
     payment_term    VARCHAR(30),
     reg_number      VARCHAR(50) UNIQUE
-);
-
--- TABLE : PRODUCT
-CREATE TABLE product (
-    product_id      SERIAL PRIMARY KEY,
-    pname           VARCHAR(100) NOT NULL,
-    description     TEXT,
-    dosage          VARCHAR(50),
-    category        VARCHAR(30),
-    price           DECIMAL(10,2) NOT NULL,
-    supplier_id     INTEGER NOT NULL,
-    reorder_qty     INTEGER,
-    storage_req     VARCHAR(200),
-    CONSTRAINT fk_product_supplier 
-        FOREIGN KEY (supplier_id) 
-        REFERENCES supplier(supplier_id)
 );
 
 -- TABLE : STOCK_BATCH
