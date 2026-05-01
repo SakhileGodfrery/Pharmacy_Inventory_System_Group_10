@@ -82,6 +82,19 @@ CREATE TABLE purchase_order_line (
         REFERENCES product(product_id)
 );
 
+-- TABLE : PHARMACIST
+CREATE TABLE pharmacist (
+    pharmacist_id     SERIAL PRIMARY KEY,
+    user_id           INTEGER NOT NULL UNIQUE,
+    license_number    VARCHAR(50) UNIQUE NOT NULL,
+    status            VARCHAR(20) DEFAULT 'ACTIVE',
+    CONSTRAINT fk_pharmacist_user
+        FOREIGN KEY (user_id)
+        REFERENCES app_user(user_id),
+    CONSTRAINT chk_pharmacist_status
+        CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED'))
+);
+
 -- TABLE : PATIENT
 CREATE TABLE PATIENT (
    patient_id SERIAL PRIMARY KEY ,
@@ -111,6 +124,25 @@ CREATE TABLE PRESCRIPTION (
     CONSTRAINT chk_expiry_after_issued CHECK ( date_expires > date_issued ) ,
     CONSTRAINT chk_issue_date CHECK ( date_issued <= CURRENT_DATE )
     );
+
+-- TABLE : PRESCRIPTION_LINE
+CREATE TABLE prescription_line (
+    prescription_id      INTEGER NOT NULL ,
+    product_id           INTEGER NOT NULL ,
+    dosage_description   VARCHAR(200),
+    quantity             INTEGER NOT NULL ,
+    CONSTRAINT pk_prescription_line
+        PRIMARY KEY (prescription_id, product_id) ,
+    CONSTRAINT fk_pl_prescription
+        FOREIGN KEY (prescription_id)
+        REFERENCES prescription(prescription_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_pl_product
+        FOREIGN KEY (product_id)
+        REFERENCES product(product_id),
+    CONSTRAINT chk_quantity_positive
+        CHECK (quantity > 0)
+);
 
 -- TABLE : PRODUCT
 CREATE TABLE PRODUCT (
@@ -221,3 +253,19 @@ INSERT INTO purchase_order_line (order_id, product_id, quantity_ordered, unit_co
 (1, 1, 500, 15.00),
 (2, 2, 200, 22.00),
 (2, 3, 150, 30.00);
+
+-- Insert Pharmacist
+INSERT INTO pharmacist (user_id, license_number, status) VALUES
+(1, 'LIC-PH-0001', 'ACTIVE'),
+(5, 'LIC-PH-0002', 'ACTIVE');
+
+-- Insert Prescription_line
+INSERT INTO prescription_line (prescription_id, product_id, dosage_description, quantity) VALUES
+(1, 1, 'Take one 500mg capsule three times daily with food',     30),
+(1, 2, 'Take one 10mg tablet every morning before breakfast',    30),
+(2, 3, 'Take one 20mg tablet at night before bed',              30),
+(3, 1, 'Take one 500mg capsule twice daily for 7 days',         14),
+(3, 2, 'Take one 10mg tablet daily in the morning',             30),
+(4, 3, 'Take one 20mg tablet with evening meal',                60),
+(5, 1, 'Take one 500mg capsule three times daily after meals',  21),
+(5, 2, 'Take one 10mg tablet every morning',                    30);
