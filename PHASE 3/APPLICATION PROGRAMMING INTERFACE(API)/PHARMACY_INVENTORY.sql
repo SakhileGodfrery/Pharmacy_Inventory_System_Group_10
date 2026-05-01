@@ -88,11 +88,9 @@ CREATE TABLE pharmacist (
     user_id           INTEGER NOT NULL UNIQUE,
     license_number    VARCHAR(50) UNIQUE NOT NULL,
     status            VARCHAR(20) DEFAULT 'ACTIVE',
-
     CONSTRAINT fk_pharmacist_user
         FOREIGN KEY (user_id)
         REFERENCES app_user(user_id),
-
     CONSTRAINT chk_pharmacist_status
         CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED'))
 );
