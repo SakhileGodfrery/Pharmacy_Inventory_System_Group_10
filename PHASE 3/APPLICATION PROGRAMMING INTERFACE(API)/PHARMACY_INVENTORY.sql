@@ -1,13 +1,5 @@
 --PHARMACY INVENTORY DATABASE: GROUP 10
 
-\c postgres
-
-DROP DATABASE IF EXISTS Pharmacy_Inventory;
-CREATE DATABASE Pharmacy_Inventory;
-
-\c Pharmacy_Inventory
-
-
 -- TABLE : USER 
 CREATE TABLE users (
     users_id       BIGSERIAL PRIMARY KEY,
@@ -151,7 +143,8 @@ CREATE TABLE prescription_line (
 CREATE TABLE sale_transaction (
     transaction_id  BIGSERIAL PRIMARY KEY,
     transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    type            VARCHAR(20) NOT NULL, 
+    type            VARCHAR(20) NOT NULL,
+    total_amount    DECIMAL(10,2) NOT NULL,
     patient_id      INT,
     pharmacist_id   INT NOT NULL,
     CONSTRAINT fk_transaction_patient FOREIGN KEY (patient_id) REFERENCES patient(patient_id),
@@ -197,8 +190,8 @@ CREATE INDEX idx_stock_batch_controller_id ON stock_batch(controller_id);
 CREATE INDEX idx_stock_batch_expiry ON stock_batch(expiry_date);
 CREATE INDEX idx_prescription_patient_id ON prescription(patient_id);
 CREATE INDEX idx_prescription_pharmacist_id ON prescription(pharmacist_id);
-CREATE INDEX idx_transaction_date ON transaction(transaction_date);
-CREATE INDEX idx_transaction_patient_id ON transaction(patient_id);
+CREATE INDEX idx_transaction_date ON sale_transaction(transaction_date);
+CREATE INDEX idx_transaction_patient_id ON sale_transaction(patient_id);
 CREATE INDEX idx_purchase_order_supplier_id ON purchase_order(supplier_id);
 CREATE INDEX idx_composite_sales ON sales_line(transaction_id, product_id, batch_id);
 
@@ -209,11 +202,11 @@ SELECT
     p.product_id,
     p.product_name,
     COALESCE(SUM(sb.quantity), 0) AS current_stock,
-    p.reorder_quantity
+    p.reorder_qty
 FROM product p
 LEFT JOIN stock_batch sb ON p.product_id = sb.product_id
-GROUP BY p.product_id, p.product_name, p.reorder_quantity
-HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_quantity;
+GROUP BY p.product_id, p.product_name, p.reorder_qty
+HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty;
 
 -- View 2: Expiring products (next 30 days)
 CREATE VIEW expiring_products_view AS
@@ -229,17 +222,6 @@ JOIN product p ON sb.product_id = p.product_id
 WHERE sb.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
 ORDER BY sb.expiry_date;
 
--- View 3: Daily sales summary
-CREATE VIEW daily_sales_summary AS
-SELECT 
-    DATE(t.transaction_date) AS sale_date,
-    COUNT(DISTINCT t.transaction_id) AS num_transactions,
-    SUM(t.total_amount) AS total_revenue,
-    COUNT(DISTINCT t.patient_id) AS unique_customers
-FROM transaction t
-WHERE t.type = 'sale'
-GROUP BY DATE(t.transaction_date)
-ORDER BY sale_date DESC;
 
 -- SAMPLE DATA
 
@@ -376,18 +358,18 @@ INSERT INTO prescription_line (prescription_id, product_id, quantity, dosage_des
 (7, 6, 30, 'Take one tablet daily at bedtime');
 
 -- 13. SALE_TRANSACTION 
-INSERT INTO sale_transaction (transaction_date, type, patient_id, pharmacist_id) VALUES
-('2024-05-02 10:30:00', 'SALE', 1, 1),
-('2024-05-02 14:15:00', 'SALE', 2, 2),
-('2024-05-03 11:00:00', 'SALE', NULL, 1),
-('2024-05-06 09:45:00', 'SALE', 3, 1),
-('2024-05-07 16:20:00', 'SALE', 1, 3),
-('2024-05-10 13:30:00', 'SALE', 4, 2),
-('2024-05-12 10:15:00', 'SALE', 2, 3),
-('2024-05-15 15:00:00', 'SALE', NULL, 1),
-('2024-05-16 11:45:00', 'RETURN', 1, 2),
-('2024-05-18 09:30:00', 'SALE', 3, 1),
-('2024-05-20 14:00:00', 'SALE', 4, 2);
+INSERT INTO sale_transaction (transaction_date, type, total_amount, patient_id, pharmacist_id) VALUES
+('2024-05-02 10:30:00', 'SALE', 125.50, 1, 1),
+('2024-05-02 14:15:00', 'SALE', 89.99, 2, 2),
+('2024-05-03 11:00:00', 'SALE', 45.75, NULL, 1),
+('2024-05-06 09:45:00', 'SALE', 210.30, 3, 1),
+('2024-05-07 16:20:00', 'SALE', 67.25, 1, 3),
+('2024-05-10 13:30:00', 'SALE', 154.80, 4, 2),
+('2024-05-12 10:15:00', 'SALE', 92.40, 2, 3),
+('2024-05-15 15:00:00', 'SALE', 33.60, NULL, 1),
+('2024-05-16 11:45:00', 'RETURN', 45.99, 1, 2),
+('2024-05-18 09:30:00', 'SALE', 178.25, 3, 1),
+('2024-05-20 14:00:00', 'SALE', 300.00, 4, 2);
 
 -- 14. SALES_LINE 
 INSERT INTO sales_line (transaction_id, product_id, batch_id, quantity_sold, selling_price) VALUES
@@ -403,7 +385,7 @@ INSERT INTO sales_line (transaction_id, product_id, batch_id, quantity_sold, sel
 (6, 10, 11, 30, 22.75),
 (7, 1, 2, 28, 26.99),
 (8, 8, 13, 10, 12.50),
-(9, 1, 2, -5, 26.99),  
+(9, 1, 2, 5, 26.99),  
 (10, 3, 4, 30, 18.75),
 (11, 9, 10, 20, 15.50);
 
@@ -415,7 +397,7 @@ INSERT INTO controlled_log (log_date, product_id, batch_id, pharmacist_id, patie
 ('2024-05-07 16:25:00', 4, 5, 3, 1, 'COMPLETED', 'DISPENSE', 12),
 ('2024-05-10 13:35:00', 9, 10, 2, 4, 'COMPLETED', 'DISPENSE', 40),
 ('2024-05-12 10:20:00', 1, 2, 3, 2, 'VERIFIED', 'DISPENSE', 28),
-('2024-05-15 15:05:00', 8, 13, 1, NULL, 'COMPLETED', 'DISPENSE', 10),
+('2024-05-15 15:05:00', 8, 13, 1, 3, 'COMPLETED', 'DISPENSE', 10),
 ('2024-05-16 11:50:00', 1, 2, 2, 1, 'COMPLETED', 'RETURN', 5),
 ('2024-05-18 09:35:00', 3, 4, 1, 3, 'COMPLETED', 'DISPENSE', 30),
 ('2024-05-20 14:05:00', 9, 10, 2, 4, 'PENDING', 'DISPENSE', 20);
@@ -468,13 +450,13 @@ SELECT
     pr.product_name,
     COALESCE(SUM(sb.quantity), 0) AS current_stock,
     pr.reorder_qty AS reorder_level,
-    sup.sname AS supplier_name,
+    sup.supplier_name AS supplier_name,
     sup.phone AS supplier_phone,
     (pr.reorder_qty - COALESCE(SUM(sb.quantity), 0)) AS quantity_to_order
 FROM product pr
 LEFT JOIN stock_batch sb ON pr.product_id = sb.product_id
 JOIN supplier sup ON pr.supplier_id = sup.supplier_id
-GROUP BY pr.product_id, pr.product_name, pr.reorder_qty, sup.sname, sup.phone
+GROUP BY pr.product_id, pr.product_name, pr.reorder_qty, sup.supplier_name, sup.phone
 HAVING COALESCE(SUM(sb.quantity), 0) <= pr.reorder_qty
 ORDER BY current_stock ASC;
 
@@ -522,13 +504,13 @@ ORDER BY price DESC, product_name ASC;
 -- Query 7: Suppliers sorted by status and company name
 -- Purpose: Supplier management overview
 SELECT 
-    sname AS supplier_name,
+    supplier_name,
     status,
     payment_term,
     phone,
     email
 FROM supplier
-ORDER BY status DESC, sname ASC;
+ORDER BY status DESC, supplier_name ASC;
 
 -- LIKE, AND, OR OPERATORS 
 
@@ -598,7 +580,7 @@ SELECT
     product_id,
     UPPER(product_name) AS product_name_upper,
     INITCAP(description) AS description_formatted,
-    CONCAT('$', TO_CHAR(price, '999.99')) AS price_formatted,
+    CONCAT('R', TO_CHAR(price, '999.99')) AS price_formatted,
     LENGTH(product_name) AS name_length,
     POSITION('mg' IN dosage) AS mg_position
 FROM product
@@ -682,7 +664,7 @@ ORDER BY sales_month DESC;
 SELECT 
     'Total Sales Revenue' AS metric_name,
     SUM(total_amount)::VARCHAR AS value,
-    '$' AS unit
+    'R' AS unit
 FROM sale_transaction WHERE type = 'SALE'
 UNION ALL
 SELECT 
@@ -694,7 +676,7 @@ UNION ALL
 SELECT 
     'Average Transaction Value',
     ROUND(AVG(total_amount), 2)::VARCHAR,
-    '$'
+    'R'
 FROM sale_transaction WHERE type = 'SALE'
 UNION ALL
 SELECT 
@@ -718,7 +700,7 @@ UNION ALL
 SELECT 
     'Total Profit (Est.)',
     ROUND(SUM((sl.selling_price - sb.unit_cost) * sl.quantity_sold), 2)::VARCHAR,
-    '$'
+    'R'
 FROM sales_line sl
 JOIN stock_batch sb ON sl.batch_id = sb.batch_id
 JOIN sale_transaction st ON sl.transaction_id = st.transaction_id
@@ -745,7 +727,7 @@ ORDER BY total_revenue DESC;
 -- Query 18: Supplier performance evaluation
 -- Purpose: Evaluate supplier reliability and product range
 SELECT 
-    sup.sname AS supplier_name,
+    sup.supplier_name AS supplier_name,
     COUNT(DISTINCT p.product_id) AS products_supplied,
     SUM(sb.quantity) AS total_inventory,
     AVG(sb.unit_cost) AS avg_cost,
@@ -754,7 +736,7 @@ SELECT
 FROM supplier sup
 JOIN product p ON sup.supplier_id = p.supplier_id
 JOIN stock_batch sb ON p.product_id = sb.product_id
-GROUP BY sup.sname
+GROUP BY sup.supplier_name
 HAVING COUNT(DISTINCT p.product_id) >= 2  -- Suppliers with at least 2 products
    AND SUM(sb.quantity) > 50               -- Total inventory > 50 units
 ORDER BY inventory_value DESC;
@@ -800,7 +782,7 @@ ORDER BY p.date_issued DESC NULLS LAST, st.transaction_date DESC NULLS LAST;
 -- Query 20: Complete supply chain analysis (6 tables)
 -- Purpose: Track products from supplier through inventory to customer
 SELECT 
-    sup.sname AS supplier_name,
+    sup.supplier_name AS supplier_name,
     sup.payment_term,
     p.product_name,
     p.category,
@@ -820,10 +802,10 @@ LEFT JOIN purchase_order_line pol ON p.product_id = pol.product_id
 LEFT JOIN purchase_order po ON pol.order_id = po.order_id
 LEFT JOIN sales_line sl ON p.product_id = sl.product_id AND sb.batch_id = sl.batch_id
 LEFT JOIN sale_transaction st ON sl.transaction_id = st.transaction_id AND st.type = 'SALE'
-GROUP BY sup.sname, sup.payment_term, p.product_name, p.category, 
+GROUP BY sup.supplier_name, sup.payment_term, p.product_name, p.category, 
          sb.batch_number, sb.quantity, sb.expiry_date, sc_ctrl.first_name, sc_ctrl.last_name
 HAVING sb.quantity > 0
-ORDER BY sup.sname, p.product_name;
+ORDER BY sup.supplier_name, p.product_name;
 
 -- SUB-QUERIES USED EFFECTIVELY 
 
@@ -927,24 +909,24 @@ ORDER BY total_sales DESC;
 -- Extra Query 1: Stored Procedure for automatic reorder generation
 CREATE OR REPLACE FUNCTION generate_reorder_report()
 RETURNS TABLE (
-    product_id INT,
+    product_id BIGINT,  
     product_name VARCHAR,
     current_stock BIGINT,
-    reorder_qty INT,
+    reorder_qty INTEGER,
     suggested_order_qty BIGINT,
     supplier_name VARCHAR,
-    urgency_level VARCHAR
+    urgency_level TEXT
 ) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
-        p.product_id,
+        p.product_id,  
         p.product_name,
         COALESCE(SUM(sb.quantity), 0) AS current_stock,
         p.reorder_qty,
         GREATEST(p.reorder_qty - COALESCE(SUM(sb.quantity), 0), 0) AS suggested_order_qty,
-        s.sname AS supplier_name,
-        CASE 
+        s.supplier_name,
+        CASE
             WHEN COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty * 0.5 THEN 'URGENT'
             WHEN COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty THEN 'REORDER NEEDED'
             ELSE 'OK'
@@ -952,7 +934,7 @@ BEGIN
     FROM product p
     LEFT JOIN stock_batch sb ON p.product_id = sb.product_id AND sb.expiry_date > CURRENT_DATE
     JOIN supplier s ON p.supplier_id = s.supplier_id
-    GROUP BY p.product_id, p.product_name, p.reorder_qty, s.sname
+    GROUP BY p.product_id, p.product_name, p.reorder_qty, s.supplier_name
     HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty * 1.2
     ORDER BY urgency_level DESC, suggested_order_qty DESC;
 END;
@@ -975,67 +957,4 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
--- Drop trigger if exists and recreate
-DROP TRIGGER IF EXISTS trg_update_transaction_total ON sales_line;
-CREATE TRIGGER trg_update_transaction_total
-AFTER INSERT OR UPDATE OR DELETE ON sales_line
-FOR EACH ROW
-EXECUTE FUNCTION update_transaction_total();
-
--- Extra Query 3: Window functions for ranking and analytics
-SELECT 
-    p.product_name,
-    p.category,
-    EXTRACT(MONTH FROM st.transaction_date) AS month,
-    SUM(sl.quantity_sold) AS monthly_sales,
-    RANK() OVER (PARTITION BY p.category ORDER BY SUM(sl.quantity_sold) DESC) AS rank_in_category,
-    SUM(SUM(sl.quantity_sold)) OVER (PARTITION BY p.category ORDER BY EXTRACT(MONTH FROM st.transaction_date)) AS cumulative_sales,
-    LAG(SUM(sl.quantity_sold)) OVER (PARTITION BY p.product_id ORDER BY EXTRACT(MONTH FROM st.transaction_date)) AS previous_month_sales,
-    CASE 
-        WHEN LAG(SUM(sl.quantity_sold)) OVER (PARTITION BY p.product_id ORDER BY EXTRACT(MONTH FROM st.transaction_date)) IS NOT NULL
-        THEN ROUND(((SUM(sl.quantity_sold) - LAG(SUM(sl.quantity_sold)) OVER (PARTITION BY p.product_id ORDER BY EXTRACT(MONTH FROM st.transaction_date))) * 100.0 / 
-                    LAG(SUM(sl.quantity_sold)) OVER (PARTITION BY p.product_id ORDER BY EXTRACT(MONTH FROM st.transaction_date))), 2)
-        ELSE NULL
-    END AS growth_percentage
-FROM product p
-JOIN sales_line sl ON p.product_id = sl.product_id
-JOIN sale_transaction st ON sl.transaction_id = st.transaction_id
-WHERE st.type = 'SALE'
-  AND st.transaction_date >= DATE_TRUNC('year', CURRENT_DATE)
-GROUP BY p.product_name, p.category, EXTRACT(MONTH FROM st.transaction_date)
-ORDER BY p.category, month;
-
--- Extra Query 4: Recursive query for organizational hierarchy
-WITH RECURSIVE user_hierarchy AS (
-    -- Base case: stock controllers (top level)
-    SELECT 
-        u.users_id,
-        u.first_name,
-        u.last_name,
-        u.roles,
-        1 AS level,
-        u.first_name || ' ' || u.last_name AS hierarchy_path
-    FROM users u
-    WHERE u.roles = 'STOCK_CONTROLLER'
-    
-    UNION ALL
-    
-    -- Recursive case: find related users (example - patients linked to pharmacists)
-    SELECT 
-        u.users_id,
-        u.first_name,
-        u.last_name,
-        u.roles,
-        uh.level + 1,
-        uh.hierarchy_path || ' -> ' || u.first_name || ' ' || u.last_name
-    FROM users u
-    CROSS JOIN user_hierarchy uh
-    WHERE u.roles IN ('PATIENT', 'PHARMACIST')
-      AND u.users_id NOT IN (SELECT users_id FROM user_hierarchy)
-    LIMIT 10
-)
-SELECT * FROM user_hierarchy ORDER BY level, hierarchy_path;
-
-
 
