@@ -157,3 +157,46 @@ INSERT INTO purchase_order_line (order_id, product_id, quantity_ordered, unit_co
 (1, 1, 500, 15.00),
 (2, 2, 200, 22.00),
 (2, 3, 150, 30.00);
+
+
+CREATE TABLE supplier (
+    supplier_id SERIAL PRIMARY KEY,
+    supplier_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    address TEXT,
+    status VARCHAR(50),
+    payment_terms VARCHAR(100),
+    phone VARCHAR(50),
+    registration_number VARCHAR(100) UNIQUE
+);
+
+
+CREATE TABLE allergy (
+    allergy_id SERIAL PRIMARY KEY,
+    patient_id INTEGER NOT NULL,
+    allergy_name VARCHAR(255) NOT NULL,
+    FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE
+);
+
+
+INSERT INTO supplier (supplier_name, email, address, status, payment_terms, phone, registration_number) VALUES 
+('Twitterbridge', 'gbemlott0@devhub.com', '4047 Marquette Street', 'suspended', 'COD', '523-756-9109', 673774),
+('Zoonoodle', 'dstandley1@issuu.com', '45 Leroy Hill', 'inactive', 'COD', '132-703-4733', 539215),
+('Skivee', 'kmcgee2@mayoclinic.com', '02 Ridge Oak Place', 'inactive', 'Net 15', '466-683-7814', 269432),
+('Kwinu', 'ldicte3@multiply.com', '08 Golf Road', 'inactive', 'COD', '984-351-2731', 988524),
+('Gabspot', 'sreiglar4@edublogs.org', '63120 International Drive', 'active', 'Net 30', '479-296-3729', 151385),
+('Wikizz', 'kprestedge5@phpbb.com', '3 Toban Circle', 'suspended', 'Net60', '183-189-7569', 454804),
+('Quinu', 'lchristophle6@ameblo.jp', '45 Bonner Place', 'suspended', 'Net 30', '466-505-5379', 589775),
+('Divape', 'mionesco7@nifty.com', '24 Starling Junction', 'suspended', 'COD', '739-847-2349', 129026),
+('Jaloo', 'msheeres8@loc.gov', '6143 Grim Parkway', 'inactive', 'COD', '649-941-9105', 682836),
+('Brainsphere', 'bboggs9@xing.com', '319 Scofield Avenue', 'suspended', 'Net 15', '498-135-7780', 316379);
+
+
+INSERT INTO allergy (patient_id, allergy_name) VALUES 
+(1, 'Penicillin'),
+(1, 'Peanuts'),
+(2, 'Pollen'),
+(3, 'Dust mites'),
+(4, 'Latex'),
+(5, 'Shellfish');
+  
