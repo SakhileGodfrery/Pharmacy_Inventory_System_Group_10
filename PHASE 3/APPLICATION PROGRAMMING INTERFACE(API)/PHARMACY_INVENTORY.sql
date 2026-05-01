@@ -1,6 +1,6 @@
 -- TABLE : USER 
-CREATE TABLE app_user (
-    user_id         SERIAL PRIMARY KEY,
+CREATE TABLE users (
+    users_id         SERIAL PRIMARY KEY,
     first_name      VARCHAR(50) NOT NULL,
     last_name       VARCHAR(50) NOT NULL,
     dob             DATE NOT NULL,
@@ -33,22 +33,6 @@ CREATE TABLE supplier (
     status          VARCHAR(20) DEFAULT 'ACTIVE',
     payment_term    VARCHAR(30),
     reg_number      VARCHAR(50) UNIQUE
-);
-
--- TABLE : PRODUCT
-CREATE TABLE product (
-    product_id      SERIAL PRIMARY KEY,
-    pname           VARCHAR(100) NOT NULL,
-    description     TEXT,
-    dosage          VARCHAR(50),
-    category        VARCHAR(30),
-    price           DECIMAL(10,2) NOT NULL,
-    supplier_id     INTEGER NOT NULL,
-    reorder_qty     INTEGER,
-    storage_req     VARCHAR(200),
-    CONSTRAINT fk_product_supplier 
-        FOREIGN KEY (supplier_id) 
-        REFERENCES supplier(supplier_id)
 );
 
 -- TABLE : STOCK_BATCH
@@ -98,19 +82,70 @@ CREATE TABLE purchase_order_line (
         REFERENCES product(product_id)
 );
 
--- TABLE : STOCK_CONTROLLER
-CREATE TABLE stock_controller (
-    controller_id   SERIAL PRIMARY KEY,
-    user_id         INTEGER UNIQUE NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE
+-- TABLE : PATIENT
+CREATE TABLE PATIENT (
+   patient_id SERIAL PRIMARY KEY ,
+   user_id INT NOT NULL ,
+   first_name VARCHAR (50) NOT NULL ,
+   last_name VARCHAR (50) NOT NULL ,
+   date_of_birth DATE NOT NULL ,
+   contact_number VARCHAR (15) ,
+   email VARCHAR (100) UNIQUE ,
+   passport_id_number VARCHAR (20) UNIQUE NOT NULL ,
+    FOREIGN KEY ( user_id ) REFERENCES USER_ACCOUNT ( user_id ) ,
+    CONSTRAINT chk_dob CHECK ( date_of_birth <= CURRENT_DATE )
+    CONSTRAINT chk_patient_name
+CHECK ( first_name <> ’’ AND last_name <> ’’)
+) ;
+
+-- TABLE : PRESCRIPTION
+CREATE TABLE PRESCRIPTION (
+    prescription_id SERIAL PRIMARY KEY ,
+    patient_id INT NOT NULL ,
+    doctor_name VARCHAR (100) NOT NULL ,
+    clinic_hospital_name VARCHAR (100) ,
+    date_issued DATE DEFAULT CURRENT_DATE ,
+    status VARCHAR (20) DEFAULT ’Pending ’,
+    FOREIGN KEY ( patient_id ) REFERENCES PATIENT ( patient_id ) ON DELETE CASCADE ,
+    CONSTRAINT chk_status CHECK ( status IN (’Pending ’, ’Dispensed ’, ’Cancelled ’)) ,
+    CONSTRAINT chk_expiry_after_issued CHECK ( date_expires > date_issued ) ,
+    CONSTRAINT chk_issue_date CHECK ( date_issued <= CURRENT_DATE )
+    );
+
+-- TABLE : PRODUCT
+CREATE TABLE PRODUCT (
+    product_id SERIAL PRIMARY KEY,
+    product_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    dosage VARCHAR(50),
+    category VARCHAR(50),
+    price NUMERIC(10,2) NOT NULL,
+    supplier_id INT,
+    reorder_qty INT,
+    storage_req VARCHAR(100),
+    CONSTRAINT fk_product_supplier
+        FOREIGN KEY (supplier_id)
+        REFERENCES supplier(supplier_id)
+        ON DELETE SET NULL
 );
 
--- TABLE : PURCHASE_ORDER
-CREATE TABLE purchase_order (
-    order_id        SERIAL PRIMARY KEY,
-    supplier_id     INTEGER NOT NULL REFERENCES supplier(supplier_id) ON DELETE RESTRICT,
-    order_date      DATE DEFAULT CURRENT_DATE,
-    delivery_date   DATE,
-    status          VARCHAR(50) DEFAULT 'Pending'   -- Pending, Shipped, Delivered, Cancelled
+-- TABLE : TRANSACTION
+CREATE TABLE TRANSACTION (
+    transaction_id SERIAL PRIMARY KEY,
+    transaction_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    pharmacist_id INT NOT NULL,
+    patient_id INT NOT NULL,
+    total_amount NUMERIC(10,2) NOT NULL,
+    payment_method VARCHAR(50),
+    status VARCHAR(30) DEFAULT 'Completed',
+    CONSTRAINT fk_transaction_pharmacist
+        FOREIGN KEY (pharmacist_id)
+        REFERENCES pharmacist(pharmacist_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_transaction_patient
+        FOREIGN KEY (patient_id)
+        REFERENCES patient(patient_id)
+        ON DELETE CASCADE
 );
 
 -- SAMPLE DATA
@@ -157,46 +192,3 @@ INSERT INTO purchase_order_line (order_id, product_id, quantity_ordered, unit_co
 (1, 1, 500, 15.00),
 (2, 2, 200, 22.00),
 (2, 3, 150, 30.00);
-
-
-CREATE TABLE supplier (
-    supplier_id SERIAL PRIMARY KEY,
-    supplier_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    address TEXT,
-    status VARCHAR(50),
-    payment_terms VARCHAR(100),
-    phone VARCHAR(50),
-    registration_number VARCHAR(100) UNIQUE
-);
-
-
-CREATE TABLE allergy (
-    allergy_id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL,
-    allergy_name VARCHAR(255) NOT NULL,
-    FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE
-);
-
-
-INSERT INTO supplier (supplier_name, email, address, status, payment_terms, phone, registration_number) VALUES 
-('Twitterbridge', 'gbemlott0@devhub.com', '4047 Marquette Street', 'suspended', 'COD', '523-756-9109', 673774),
-('Zoonoodle', 'dstandley1@issuu.com', '45 Leroy Hill', 'inactive', 'COD', '132-703-4733', 539215),
-('Skivee', 'kmcgee2@mayoclinic.com', '02 Ridge Oak Place', 'inactive', 'Net 15', '466-683-7814', 269432),
-('Kwinu', 'ldicte3@multiply.com', '08 Golf Road', 'inactive', 'COD', '984-351-2731', 988524),
-('Gabspot', 'sreiglar4@edublogs.org', '63120 International Drive', 'active', 'Net 30', '479-296-3729', 151385),
-('Wikizz', 'kprestedge5@phpbb.com', '3 Toban Circle', 'suspended', 'Net60', '183-189-7569', 454804),
-('Quinu', 'lchristophle6@ameblo.jp', '45 Bonner Place', 'suspended', 'Net 30', '466-505-5379', 589775),
-('Divape', 'mionesco7@nifty.com', '24 Starling Junction', 'suspended', 'COD', '739-847-2349', 129026),
-('Jaloo', 'msheeres8@loc.gov', '6143 Grim Parkway', 'inactive', 'COD', '649-941-9105', 682836),
-('Brainsphere', 'bboggs9@xing.com', '319 Scofield Avenue', 'suspended', 'Net 15', '498-135-7780', 316379);
-
-
-INSERT INTO allergy (patient_id, allergy_name) VALUES 
-(1, 'Penicillin'),
-(1, 'Peanuts'),
-(2, 'Pollen'),
-(3, 'Dust mites'),
-(4, 'Latex'),
-(5, 'Shellfish');
-  
