@@ -753,3 +753,61 @@ WHERE (phone LIKE '800-%' OR phone LIKE '555-%')
   AND LENGTH(phone) >= 10;
 
 SELECT 'All LIKE, AND, OR operator queries executed successfully!' AS execution_status;
+SELECT t.pharmacist_id, SUM(t.total_amount) AS total_sales
+FROM transaction t
+GROUP BY t.pharmacist_id
+HAVING SUM(t.total_amount) > 5000;
+
+SELECT t.patient_id, COUNT(*) AS num_transactions
+FROM transaction t
+GROUP BY t.patient_id
+HAVING COUNT(*) > 3;
+
+SELECT p.product_id, p.product_name, SUM(sl.quantity_sold) AS total_sold
+FROM sales_line sl
+JOIN product p ON sl.product_id = p.product_id
+GROUP BY p.product_id, p.product_name
+HAVING SUM(sl.quantity_sold) > 50;
+
+SELECT p.product_id, p.product_name,
+       SUM(sl.quantity_sold * sl.selling_price) AS revenue
+FROM sales_line sl
+JOIN product p ON sl.product_id = p.product_id
+GROUP BY p.product_id, p.product_name
+HAVING SUM(sl.quantity_sold * sl.selling_price) > 10000;
+
+SELECT s.supplier_id, s.supplier_name, COUNT(p.product_id) AS total_products
+FROM supplier s
+JOIN product p ON s.supplier_id = p.supplier_id
+GROUP BY s.supplier_id, s.supplier_name
+HAVING COUNT(p.product_id) > 5;
+
+SELECT pr.pharmacist_id, COUNT(pr.prescription_id) AS total_prescriptions
+FROM prescription pr
+GROUP BY pr.pharmacist_id
+HAVING COUNT(pr.prescription_id) > 10;
+
+SELECT p.product_id, p.product_name,
+       SUM(pol.quantity_ordered) AS total_ordered
+FROM purchase_order_line pol
+JOIN product p ON pol.product_id = p.product_id
+GROUP BY p.product_id, p.product_name
+HAVING SUM(pol.quantity_ordered) > 100;
+
+SELECT t.pharmacist_id, COUNT(*) AS total_transactions
+FROM transaction t
+WHERE t.status = 'Completed'
+GROUP BY t.pharmacist_id
+HAVING COUNT(*) > 5;
+
+SELECT DATE(transaction_date) AS sale_date,
+       SUM(total_amount) AS daily_sales
+FROM transaction
+GROUP BY DATE(transaction_date)
+HAVING SUM(total_amount) > 2000;
+
+SELECT p.patient_id, COUNT(pr.prescription_id) AS total_prescriptions
+FROM patient p
+JOIN prescription pr ON p.patient_id = pr.patient_id
+GROUP BY p.patient_id
+HAVING COUNT(pr.prescription_id) > 2;
