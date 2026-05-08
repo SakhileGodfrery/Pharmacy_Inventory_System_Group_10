@@ -462,3 +462,107 @@ HAVING COALESCE(SUM(sb.quantity), 0) <= pr.reorder_qty
 ORDER BY current_stock ASC;
 
 
+
+-- Sub - query 1: Find all patients who have at least one prescription
+SELECT
+    p.patient_id,
+    u.first_name || ’ ’ || u.last_name AS patient_name,
+    u.email,
+    u.phone
+    FROM patient p
+    INNER JOIN users u ON p.users_id = u.users_id
+    WHERE p.patient_id IN (
+    SELECT DISTINCT patient_id
+    FROM prescription
+    WHERE patient_id IS NOT NULL
+    )
+    ORDER BY u.last_name ASC ;
+
+
+-- Sub - query 2: Find patients registered in the system but with no prescription on record
+SELECT
+    p.patient_id,
+    u.first_name || ’ ’ || u.last_name AS patient_name,
+    u.email,
+    u.phone,
+    u.reg_date AS
+    registration_date
+    FROM patient p
+    INNER JOIN users u ON p.users_id = u.users_id
+    WHERE p.patient_id NOT IN (
+    SELECT DISTINCT patient_id
+    FROM prescription
+    WHERE patient_id IS NOT NULL
+    )
+    ORDER BY u . reg_date ASC ;
+
+
+-- Sub - query 3: Products With Stock Below Their Reorder Level
+SELECT
+    p.product_id,
+    p.product_name,
+    p.category,
+    p.reorder_qty AS
+    reorder_threshold,
+    (
+    SELECT COALESCE (SUM(sb.quantity), 0)
+    FROM stock_batch sb
+    WHERE sb.product_id = p.product_id
+    AND sb.expiry_date > CURRENT_DATE
+    ) AS current_stock,
+    p.price
+    FROM product p
+    WHERE (
+    SELECT COALESCE (SUM(sb.quantity), 0)
+    FROM stock_batch sb
+    WHERE sb.product_id = p.product_id
+    AND sb.expiry_date > CURRENT_DATE
+    ) < p.reorder_qty
+    ORDER BY current_stock ASC ;
+
+
+-- Sub-query 4: Pharmacists Who Processed More Than the Average Number of Transactions
+SELECT
+    ph.pharmacist_id,
+    u.first_name || ’ ’ || u.last_name AS pharmacist_name,
+    u.email,
+    ph.license_number,
+    ph.status,
+    COUNT (st.transaction_id) AS
+    total_transactions
+    FROM pharmacist ph
+    INNER JOIN users u
+    ON ph.users_id = u.users_id
+    INNER JOIN sale_transaction st
+    ON ph.pharmacist_id = st.pharmacist_id
+    GROUP BY ph.pharmacist_id, u.first_name,
+    u.last_name, u.email,
+    ph.license_number, ph.status
+    HAVING COUNT (st.transaction_id) > (
+    SELECT AVG(txn_count)
+    FROM (
+    SELECT pharmacist_id ,
+    COUNT (transaction_id) AS txn_count
+    FROM sale_transaction
+    GROUP BY pharmacist_id
+    ) AS pharmacist_totals
+    )
+    ORDER BY total_transactions DESC ;
+
+
+ -- Sub-Query 5: Products That Have Never Been Dispensed in Any Sale Transaction
+SELECT
+    p.product_id,
+    p.product_name,
+    p.category,
+    p.price,
+    p.reorder_qty,
+    p.storage_req
+    FROM product p
+    WHERE NOT EXISTS (
+    SELECT 1
+    FROM sales_line sl
+    WHERE sl.product_id = p.product_id
+    )
+    ORDER BY p.category ASC, p.product_name ASC;
+
