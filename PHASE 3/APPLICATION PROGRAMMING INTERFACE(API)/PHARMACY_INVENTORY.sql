@@ -141,6 +141,7 @@ CREATE TABLE prescription_line (
 CREATE TABLE sale_transaction (
     transaction_id  BIGSERIAL PRIMARY KEY,
     transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_amount    DECIMAL(10,2) NOT NULL
     type            VARCHAR(20) NOT NULL, 
     patient_id      INT,
     pharmacist_id   INT NOT NULL,
@@ -187,8 +188,8 @@ CREATE INDEX idx_stock_batch_controller_id ON stock_batch(controller_id);
 CREATE INDEX idx_stock_batch_expiry ON stock_batch(expiry_date);
 CREATE INDEX idx_prescription_patient_id ON prescription(patient_id);
 CREATE INDEX idx_prescription_pharmacist_id ON prescription(pharmacist_id);
-CREATE INDEX idx_transaction_date ON transaction(transaction_date);
-CREATE INDEX idx_transaction_patient_id ON transaction(patient_id);
+CREATE INDEX idx_transaction_date ON sale_transaction(transaction_date);
+CREATE INDEX idx_transaction_patient_id ON sale_transaction(patient_id);
 CREATE INDEX idx_purchase_order_supplier_id ON purchase_order(supplier_id);
 CREATE INDEX idx_composite_sales ON sales_line(transaction_id, product_id, batch_id);
 
@@ -199,11 +200,11 @@ SELECT
     p.product_id,
     p.product_name,
     COALESCE(SUM(sb.quantity), 0) AS current_stock,
-    p.reorder_quantity
+    p.reorder_qty
 FROM product p
 LEFT JOIN stock_batch sb ON p.product_id = sb.product_id
-GROUP BY p.product_id, p.product_name, p.reorder_quantity
-HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_quantity;
+GROUP BY p.product_id, p.product_name, p.reorder_qty
+HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty;
 
 -- View 2: Expiring products (next 30 days)
 CREATE VIEW expiring_products_view AS
@@ -219,17 +220,6 @@ JOIN product p ON sb.product_id = p.product_id
 WHERE sb.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
 ORDER BY sb.expiry_date;
 
--- View 3: Daily sales summary
-CREATE VIEW daily_sales_summary AS
-SELECT 
-    DATE(t.transaction_date) AS sale_date,
-    COUNT(DISTINCT t.transaction_id) AS num_transactions,
-    SUM(t.total_amount) AS total_revenue,
-    COUNT(DISTINCT t.patient_id) AS unique_customers
-FROM transaction t
-WHERE t.type = 'sale'
-GROUP BY DATE(t.transaction_date)
-ORDER BY sale_date DESC;
 
 -- SAMPLE DATA
 
@@ -366,18 +356,18 @@ INSERT INTO prescription_line (prescription_id, product_id, quantity, dosage_des
 (7, 6, 30, 'Take one tablet daily at bedtime');
 
 -- 13. SALE_TRANSACTION 
-INSERT INTO sale_transaction (transaction_date, type, patient_id, pharmacist_id) VALUES
-('2024-05-02 10:30:00', 'SALE', 1, 1),
-('2024-05-02 14:15:00', 'SALE', 2, 2),
-('2024-05-03 11:00:00', 'SALE', NULL, 1),
-('2024-05-06 09:45:00', 'SALE', 3, 1),
-('2024-05-07 16:20:00', 'SALE', 1, 3),
-('2024-05-10 13:30:00', 'SALE', 4, 2),
-('2024-05-12 10:15:00', 'SALE', 2, 3),
-('2024-05-15 15:00:00', 'SALE', NULL, 1),
-('2024-05-16 11:45:00', 'RETURN', 1, 2),
-('2024-05-18 09:30:00', 'SALE', 3, 1),
-('2024-05-20 14:00:00', 'SALE', 4, 2);
+INSERT INTO sale_transaction (transaction_date, type, total_amount, patient_id, pharmacist_id) VALUES
+('2024-05-02 10:30:00', 'SALE', 125.50, 1, 1),
+('2024-05-02 14:15:00', 'SALE', 89.99, 2, 2),
+('2024-05-03 11:00:00', 'SALE', 45.75, NULL, 1),
+('2024-05-06 09:45:00', 'SALE', 210.30, 3, 1),
+('2024-05-07 16:20:00', 'SALE', 67.25, 1, 3),
+('2024-05-10 13:30:00', 'SALE', 154.80, 4, 2),
+('2024-05-12 10:15:00', 'SALE', 92.40, 2, 3),
+('2024-05-15 15:00:00', 'SALE', 33.60, NULL, 1),
+('2024-05-16 11:45:00', 'RETURN', 45.99, 1, 2),
+('2024-05-18 09:30:00', 'SALE', 178.25, 3, 1),
+('2024-05-20 14:00:00', 'SALE', 300.00, 4, 2);
 
 -- 14. SALES_LINE 
 INSERT INTO sales_line (transaction_id, product_id, batch_id, quantity_sold, selling_price) VALUES
@@ -393,7 +383,7 @@ INSERT INTO sales_line (transaction_id, product_id, batch_id, quantity_sold, sel
 (6, 10, 11, 30, 22.75),
 (7, 1, 2, 28, 26.99),
 (8, 8, 13, 10, 12.50),
-(9, 1, 2, -5, 26.99),  
+(9, 1, 2, 5, 26.99),  
 (10, 3, 4, 30, 18.75),
 (11, 9, 10, 20, 15.50);
 
@@ -405,12 +395,66 @@ INSERT INTO controlled_log (log_date, product_id, batch_id, pharmacist_id, patie
 ('2024-05-07 16:25:00', 4, 5, 3, 1, 'COMPLETED', 'DISPENSE', 12),
 ('2024-05-10 13:35:00', 9, 10, 2, 4, 'COMPLETED', 'DISPENSE', 40),
 ('2024-05-12 10:20:00', 1, 2, 3, 2, 'VERIFIED', 'DISPENSE', 28),
-('2024-05-15 15:05:00', 8, 13, 1, NULL, 'COMPLETED', 'DISPENSE', 10),
+('2024-05-15 15:05:00', 8, 13, 1, 3, 'COMPLETED', 'DISPENSE', 10),
 ('2024-05-16 11:50:00', 1, 2, 2, 1, 'COMPLETED', 'RETURN', 5),
 ('2024-05-18 09:35:00', 3, 4, 1, 3, 'COMPLETED', 'DISPENSE', 30),
 ('2024-05-20 14:05:00', 9, 10, 2, 4, 'PENDING', 'DISPENSE', 20);
 
 COMMIT;
 
+--QUERIES--
 
+--QUERIES BASED ON COMPANY INFORMATION REQUIREMENTS 
+
+-- Query 1: Get complete patient prescription history with doctor details
+-- Purpose: Track all prescriptions issued to patients including doctor and pharmacist information
+SELECT 
+    p.prescription_id,
+    CONCAT(u.first_name, ' ', u.last_name) AS patient_name,
+    p.date_issued,
+    p.doctor_name,
+    p.hospital_name,
+    CONCAT(u2.first_name, ' ', u2.last_name) AS pharmacist_name,
+    COUNT(pl.product_id) AS number_of_medications
+FROM prescription p
+JOIN patient pa ON p.patient_id = pa.patient_id
+JOIN users u ON pa.users_id = u.users_id
+JOIN pharmacist ph ON p.pharmacist_id = ph.pharmacist_id
+JOIN users u2 ON ph.users_id = u2.users_id
+JOIN prescription_line pl ON p.prescription_id = pl.prescription_id
+GROUP BY p.prescription_id, u.first_name, u.last_name, p.date_issued, 
+         p.doctor_name, p.hospital_name, u2.first_name, u2.last_name
+ORDER BY p.date_issued DESC;
+
+-- Query 2: Monitor pharmacy sales performance by product category
+-- Purpose: Analyze which product categories generate the most revenue
+SELECT 
+    pr.category,
+    COUNT(DISTINCT st.transaction_id) AS number_of_transactions,
+    SUM(sl.quantity_sold) AS total_units_sold,
+    SUM(sl.quantity_sold * sl.selling_price) AS total_revenue,
+    ROUND(AVG(sl.selling_price), 2) AS average_selling_price
+FROM product pr
+JOIN sales_line sl ON pr.product_id = sl.product_id
+JOIN sale_transaction st ON sl.transaction_id = st.transaction_id
+WHERE st.type = 'SALE'
+GROUP BY pr.category
+ORDER BY total_revenue DESC;
+
+-- Query 3: Identify low stock products requiring immediate reordering
+-- Purpose: Inventory management - find products below reorder threshold
+SELECT 
+    pr.product_id,
+    pr.product_name,
+    COALESCE(SUM(sb.quantity), 0) AS current_stock,
+    pr.reorder_qty AS reorder_level,
+    sup.supplier_name AS supplier_name,
+    sup.phone AS supplier_phone,
+    (pr.reorder_qty - COALESCE(SUM(sb.quantity), 0)) AS quantity_to_order
+FROM product pr
+LEFT JOIN stock_batch sb ON pr.product_id = sb.product_id
+JOIN supplier sup ON pr.supplier_id = sup.supplier_id
+GROUP BY pr.product_id, pr.product_name, pr.reorder_qty, sup.supplier_name, sup.phone
+HAVING COALESCE(SUM(sb.quantity), 0) <= pr.reorder_qty
+ORDER BY current_stock ASC;
 
