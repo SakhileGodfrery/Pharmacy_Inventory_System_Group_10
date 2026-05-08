@@ -151,7 +151,7 @@ CREATE TABLE sale_transaction (
     CONSTRAINT fk_transaction_pharmacist FOREIGN KEY (pharmacist_id) REFERENCES pharmacist(pharmacist_id)
 );
 
--- TABLE 14: SALES_LINE (Triple composite key)
+-- TABLE : SALES_LINE 
 CREATE TABLE sales_line (
     transaction_id  INT NOT NULL,
     product_id      INT NOT NULL,
