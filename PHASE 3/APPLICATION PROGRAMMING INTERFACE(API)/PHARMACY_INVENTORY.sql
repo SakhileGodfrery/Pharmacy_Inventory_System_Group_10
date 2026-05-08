@@ -1,6 +1,6 @@
 -- TABLE : USER 
 CREATE TABLE users (
-<<<<<<< HEAD
+
     users_id       BIGSERIAL PRIMARY KEY,
     first_name     VARCHAR(50) NOT NULL,
     last_name      VARCHAR(50) NOT NULL,
@@ -566,3 +566,190 @@ SELECT
     )
     ORDER BY p.category ASC, p.product_name ASC;
 
+
+-- =============================================
+-- QUERIES DEMONSTRATING LIKE, AND, OR OPERATORS
+-- WITH CHARACTER FUNCTIONS
+-- =============================================
+
+-- Query 4: Find products with specific naming patterns using LIKE operator
+-- Purpose: Search for products by name patterns (e.g., starting with 'A' or containing 'statin')
+SELECT 
+    product_name,
+    UPPER(product_name) AS product_upper,
+    LOWER(category) AS category_lower,
+    INITCAP(description) AS description_proper
+FROM product
+WHERE product_name LIKE 'A%'  
+   OR product_name LIKE '%statin%';
+
+-- Query 5: Find suppliers with specific patterns using AND/OR
+-- Purpose: Filter suppliers based on name patterns and active status
+SELECT 
+    supplier_name,
+    email,
+    UPPER(supplier_name) AS supplier_upper,
+    LOWER(email) AS email_lower,
+    LENGTH(phone) AS phone_digit_count
+FROM supplier
+WHERE (supplier_name LIKE '%Supply%' OR email LIKE '%@medisource.com')
+  AND status = 'ACTIVE'
+  AND LENGTH(phone) > 8;
+
+-- Query 6: Find users with name patterns and email domains
+-- Purpose: User search with multiple pattern conditions
+SELECT 
+    users_id,
+    first_name || ' ' || last_name AS full_name,
+    UPPER(last_name) AS last_name_upper,
+    SUBSTRING(email, 1, POSITION('@' IN email) - 1) AS email_username,
+    country
+FROM users
+WHERE (first_name LIKE 'J%' OR last_name LIKE 'S%')
+  AND email LIKE '%@pharmacy.com'
+  AND country = 'USA';
+
+-- Query 7: Complex product search with description keywords
+-- Purpose: Find products by description content and price range
+SELECT 
+    product_id,
+    product_name,
+    description,
+    UPPER(category) AS category_upper,
+    REPLACE(description, ' ', '_') AS description_underscored,
+    POSITION('blood' IN LOWER(description)) AS keyword_position
+FROM product
+WHERE (LOWER(product_name) LIKE '%amox%' OR LOWER(description) LIKE '%antibiotic%')
+  AND category = 'Antibiotics'
+  AND price > 20.00;
+
+-- Query 8: Email pattern validation and classification
+-- Purpose: Categorize users by email domain patterns
+SELECT 
+    users_id,
+    email,
+    SUBSTRING(email FROM POSITION('@' IN email) + 1) AS email_domain,
+    CASE 
+        WHEN email LIKE '%.com' THEN '.com user'
+        WHEN email LIKE '%.org' THEN '.org user'
+        ELSE 'other'
+    END AS email_type
+FROM users
+WHERE (email LIKE '%@pharmacy.com' OR email LIKE '%@email.com')
+  AND LENGTH(phone) = 8
+  AND roles IN ('PHARMACIST', 'STOCK_CONTROLLER');
+
+-- Query 9: Batch number pattern matching
+-- Purpose: Find inventory batches with specific numbering patterns
+SELECT 
+    batch_number,
+    product_id,
+    quantity,
+    unit_cost,
+    SUBSTRING(batch_number, 1, 4) AS batch_prefix,
+    RIGHT(batch_number, 3) AS batch_suffix
+FROM stock_batch
+WHERE (batch_number LIKE '%-%' 
+   AND batch_number LIKE '%001%')
+   OR batch_number LIKE '%-00_';
+
+-- Query 10: Address pattern search with formatting
+-- Purpose: Find users by address patterns and standardize address format
+SELECT 
+    first_name || ' ' || last_name AS full_name,
+    home_address,
+    UPPER(SUBSTRING(home_address FROM '\\w+$')) AS last_word_upper,
+    REPLACE(home_address, 'St', 'Street') AS address_formatted
+FROM users
+WHERE (home_address LIKE '%Main%' OR home_address LIKE '%Oak%')
+  AND country = 'USA'
+  AND LENGTH(home_address) > 10;
+
+-- Query 11: Supplier pattern search with custom codes
+-- Purpose: Create custom supplier identifiers based on patterns
+SELECT 
+    supplier_name,
+    COALESCE(phone, 'No Phone') AS contact_info,
+    status,
+    UPPER(payment_term) AS payment_upper,
+    CONCAT(LEFT(supplier_name, 3), '-', RIGHT(reg_number, 3)) AS custom_code
+FROM supplier
+WHERE (supplier_name LIKE '%Distributors%' 
+   OR email LIKE '%@globalpharma%')
+  AND status = 'ACTIVE'
+  AND payment_term IN ('Net 30', 'Net 45')
+  AND LENGTH(reg_number) >= 5;
+
+-- Query 12: Product category pattern analysis
+-- Purpose: Classify drugs based on naming patterns
+SELECT 
+    product_name,
+    category,
+    CASE 
+        WHEN product_name LIKE '%cillin' THEN 'Penicillin Type'
+        WHEN product_name LIKE '%statin' THEN 'Statin Type'
+        ELSE 'Other'
+    END AS drug_class,
+    UPPER(LEFT(product_name, 5)) AS name_prefix,
+    LENGTH(description) AS desc_length
+FROM product
+WHERE (LOWER(category) LIKE '%cardio%' OR category LIKE '%Antibiotics%')
+  AND price BETWEEN 20 AND 50
+  AND LENGTH(product_name) > 8;
+
+-- Query 13: Purchase order status pattern search
+-- Purpose: Analyze order statuses with pattern matching
+SELECT 
+    order_id,
+    status,
+    order_date,
+    delivery_date,
+    UPPER(status) AS status_upper,
+    CASE 
+        WHEN status LIKE 'DELIVER%' THEN 'Delivered'
+        WHEN status LIKE 'PEND%' THEN 'Pending'
+        WHEN status LIKE 'CANCEL%' THEN 'Cancelled'
+        ELSE 'Other'
+    END AS status_category
+FROM purchase_order
+WHERE (status LIKE 'DELIV%' OR status LIKE 'PEND%')
+  AND order_date >= '2024-01-01'
+  AND (delivery_date IS NOT NULL OR status = 'PENDING')
+  AND EXTRACT(MONTH FROM order_date) IN (1, 2, 3, 4, 5);
+
+-- Query 14: Product price pattern analysis
+-- Purpose: Find products in specific price ranges with pattern matching
+SELECT 
+    product_name,
+    price,
+    category,
+    CASE 
+        WHEN price < 20 THEN 'Budget'
+        WHEN price BETWEEN 20 AND 50 THEN 'Standard'
+        WHEN price > 50 THEN 'Premium'
+    END AS price_tier,
+    ROUND(price, 0) AS rounded_price
+FROM product
+WHERE (category LIKE '%Cardio%' OR category LIKE '%Antibiotics%')
+  AND price BETWEEN 15 AND 60
+  AND product_name LIKE '%mg'
+ORDER BY price DESC;
+
+-- Query 15: Emergency contact pattern search
+-- Purpose: Find suppliers with specific phone number patterns
+SELECT 
+    supplier_name,
+    phone,
+    status,
+    CASE 
+        WHEN phone LIKE '800-%' THEN 'Toll Free'
+        WHEN phone LIKE '555-%' THEN 'Local'
+        ELSE 'Other'
+    END AS phone_type,
+    REPLACE(phone, '-', '') AS phone_digits_only
+FROM supplier
+WHERE (phone LIKE '800-%' OR phone LIKE '555-%')
+  AND status = 'ACTIVE'
+  AND LENGTH(phone) >= 10;
+
+SELECT 'All LIKE, AND, OR operator queries executed successfully!' AS execution_status;
