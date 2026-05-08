@@ -8,7 +8,7 @@ CREATE TABLE users (
     roles          VARCHAR(20) NOT NULL,
     email          VARCHAR(100) UNIQUE NOT NULL,
     phone          VARCHAR(20),
-    home_address        VARCHAR(200),
+    home_address   VARCHAR(200),
     password_hash  VARCHAR(100) NOT NULL, 
     gender         CHAR(1) CHECK (gender IN ('M', 'F', 'O')),
     country        VARCHAR(50),
@@ -62,7 +62,7 @@ CREATE TABLE supplier (
     reg_number      VARCHAR(50) UNIQUE
 );
 
-<<<<<<< HEAD
+
 -- TABLE : PRODUCT
 CREATE TABLE product (
     product_id      BIGSERIAL PRIMARY KEY,
@@ -77,8 +77,6 @@ CREATE TABLE product (
     CONSTRAINT fk_product_supplier FOREIGN KEY (supplier_id) REFERENCES supplier(supplier_id)
 );
 
-=======
->>>>>>> 0e3072be795b17e279c7c99d42eeee4f16d9ecfc
 -- TABLE : STOCK_BATCH
 CREATE TABLE stock_batch (
     batch_id            BIGSERIAL PRIMARY KEY,
@@ -117,7 +115,6 @@ CREATE TABLE purchase_order_line (
     CONSTRAINT fk_po_line_product FOREIGN KEY (product_id) REFERENCES product(product_id)
 );
 
-<<<<<<< HEAD
 --TABLE : PRESCRIPTION 
 CREATE TABLE prescription (
     prescription_id        BIGSERIAL PRIMARY KEY,
@@ -154,7 +151,7 @@ CREATE TABLE sale_transaction (
     CONSTRAINT fk_transaction_pharmacist FOREIGN KEY (pharmacist_id) REFERENCES pharmacist(pharmacist_id)
 );
 
--- TABLE 14: SALES_LINE (Triple composite key)
+-- TABLE: SALES_LINE 
 CREATE TABLE sales_line (
     transaction_id  INT NOT NULL,
     product_id      INT NOT NULL,
@@ -225,134 +222,6 @@ JOIN product p ON sb.product_id = p.product_id
 WHERE sb.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
 ORDER BY sb.expiry_date;
 
-=======
--- TABLE : PHARMACIST
-CREATE TABLE pharmacist (
-    pharmacist_id     SERIAL PRIMARY KEY,
-    user_id           INTEGER NOT NULL UNIQUE,
-    license_number    VARCHAR(50) UNIQUE NOT NULL,
-    status            VARCHAR(20) DEFAULT 'ACTIVE',
-    CONSTRAINT fk_pharmacist_user
-        FOREIGN KEY (user_id)
-        REFERENCES app_user(user_id),
-    CONSTRAINT chk_pharmacist_status
-        CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED'))
-);
-
--- TABLE : PATIENT
-CREATE TABLE PATIENT (
-   patient_id SERIAL PRIMARY KEY ,
-   user_id INT NOT NULL ,
-   first_name VARCHAR (50) NOT NULL ,
-   last_name VARCHAR (50) NOT NULL ,
-   date_of_birth DATE NOT NULL ,
-   contact_number VARCHAR (15) ,
-   email VARCHAR (100) UNIQUE ,
-   passport_id_number VARCHAR (20) UNIQUE NOT NULL ,
-    FOREIGN KEY ( user_id ) REFERENCES USER_ACCOUNT ( user_id ) ,
-    CONSTRAINT chk_dob CHECK ( date_of_birth <= CURRENT_DATE )
-    CONSTRAINT chk_patient_name
-CHECK ( first_name <> ’’ AND last_name <> ’’)
-) ;
-
--- TABLE : PRESCRIPTION
-CREATE TABLE PRESCRIPTION (
-    prescription_id SERIAL PRIMARY KEY ,
-    patient_id INT NOT NULL ,
-    doctor_name VARCHAR (100) NOT NULL ,
-    clinic_hospital_name VARCHAR (100) ,
-    date_issued DATE DEFAULT CURRENT_DATE ,
-    status VARCHAR (20) DEFAULT ’Pending ’,
-    FOREIGN KEY ( patient_id ) REFERENCES PATIENT ( patient_id ) ON DELETE CASCADE ,
-    CONSTRAINT chk_status CHECK ( status IN (’Pending ’, ’Dispensed ’, ’Cancelled ’)) ,
-    CONSTRAINT chk_expiry_after_issued CHECK ( date_expires > date_issued ) ,
-    CONSTRAINT chk_issue_date CHECK ( date_issued <= CURRENT_DATE )
-    );
-
--- TABLE : PRESCRIPTION_LINE
-CREATE TABLE prescription_line (
-    prescription_id      INTEGER NOT NULL ,
-    product_id           INTEGER NOT NULL ,
-    dosage_description   VARCHAR(200),
-    quantity             INTEGER NOT NULL ,
-    CONSTRAINT pk_prescription_line
-        PRIMARY KEY (prescription_id, product_id) ,
-    CONSTRAINT fk_pl_prescription
-        FOREIGN KEY (prescription_id)
-        REFERENCES prescription(prescription_id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_pl_product
-        FOREIGN KEY (product_id)
-        REFERENCES product(product_id),
-    CONSTRAINT chk_quantity_positive
-        CHECK (quantity > 0)
-);
-
--- TABLE : PRODUCT
-CREATE TABLE PRODUCT (
-    product_id SERIAL PRIMARY KEY,
-    product_name VARCHAR(100) NOT NULL,
-    description TEXT,
-    dosage VARCHAR(50),
-    category VARCHAR(50),
-    price NUMERIC(10,2) NOT NULL,
-    supplier_id INT,
-    reorder_qty INT,
-    storage_req VARCHAR(100),
-    CONSTRAINT fk_product_supplier
-        FOREIGN KEY (supplier_id)
-        REFERENCES supplier(supplier_id)
-        ON DELETE SET NULL
-);
-
--- TABLE : TRANSACTION
-CREATE TABLE TRANSACTION (
-    transaction_id SERIAL PRIMARY KEY,
-    transaction_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    pharmacist_id INT NOT NULL,
-    patient_id INT NOT NULL,
-    total_amount NUMERIC(10,2) NOT NULL,
-    payment_method VARCHAR(50),
-    status VARCHAR(30) DEFAULT 'Completed',
-    CONSTRAINT fk_transaction_pharmacist
-        FOREIGN KEY (pharmacist_id)
-        REFERENCES pharmacist(pharmacist_id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_transaction_patient
-        FOREIGN KEY (patient_id)
-        REFERENCES patient(patient_id)
-        ON DELETE CASCADE
-);
--- TABLE : PATIENT
-CREATE TABLE PATIENT (
-   patient_id SERIAL PRIMARY KEY ,
-   user_id INT NOT NULL ,
-   first_name VARCHAR (50) NOT NULL ,
-   last_name VARCHAR (50) NOT NULL ,
-   date_of_birth DATE NOT NULL ,
-   contact_number VARCHAR (15) ,
-   email VARCHAR (100) UNIQUE ,
-   passport_id_number VARCHAR (20) UNIQUE NOT NULL ,
-    FOREIGN KEY ( user_id ) REFERENCES USER_ACCOUNT ( user_id ) ,
-    CONSTRAINT chk_dob CHECK ( date_of_birth <= CURRENT_DATE )
-    CONSTRAINT chk_patient_name
-CHECK ( first_name <> ’’ AND last_name <> ’’)
-) ;
-
--- TABLE : PRESCRIPTION
-CREATE TABLE PRESCRIPTION (
-    prescription_id SERIAL PRIMARY KEY ,
-    patient_id INT NOT NULL ,
-    doctor_name VARCHAR (100) NOT NULL ,
-    clinic_hospital_name VARCHAR (100) ,
-    date_issued DATE DEFAULT CURRENT_DATE ,
-    status VARCHAR (20) DEFAULT ’Pending ’,
-    FOREIGN KEY ( patient_id ) REFERENCES PATIENT ( patient_id ) ON DELETE CASCADE ,
-    CONSTRAINT chk_status CHECK ( status IN (’Pending ’, ’Dispensed ’, ’Cancelled ’)) ,
-    CONSTRAINT chk_expiry_after_issued CHECK ( date_expires > date_issued ) ,
-    CONSTRAINT chk_issue_date CHECK ( date_issued <= CURRENT_DATE )
-    );
->>>>>>> 0e3072be795b17e279c7c99d42eeee4f16d9ecfc
 
 -- SAMPLE DATA
 
