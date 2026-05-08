@@ -157,3 +157,50 @@ INSERT INTO purchase_order_line (order_id, product_id, quantity_ordered, unit_co
 (1, 1, 500, 15.00),
 (2, 2, 200, 22.00),
 (2, 3, 150, 30.00);
+
+-- Queries
+-- Rounding: Ensure product prices are displayed to 2 decimal places
+-- Uses the 'price' attribute from the PRODUCT table [cite: 529, 579]
+SELECT 
+    product_name, 
+    ROUND(price::numeric, 2) AS formatted_price 
+FROM PRODUCT;
+
+-- Truncation: Strip decimals for a simplified "whole-amount" view of batch costs
+-- Uses the 'cost_price' attribute from the BATCH table [cite: 530, 579]
+SELECT 
+    batch_id, 
+    product_id, 
+    TRUNC(cost_price::numeric, 0) AS whole_unit_cost 
+FROM BATCH;
+
+-- String Formatting: Standardize name cases and combine them
+-- Uses first_name and last_name from the USER table [cite: 527, 578]
+SELECT 
+    UPPER(last_name) AS surname,                  -- Converts to UPPERCASE
+    INITCAP(first_name) AS proper_name,           -- Capitalizes first letter (Proper Case)
+    first_name || ' ' || last_name AS full_name,  -- String concatenation (||)
+    LENGTH(first_name) AS name_length             -- Counts characters
+FROM "USER";
+
+-- Text Manipulation: Create product summaries
+-- Uses product_name and description from the PRODUCT table [cite: 529, 579]
+SELECT 
+    product_name, 
+    LEFT(description, 20) || '...' AS short_summary, -- Clips text to first 20 characters
+    LOWER(category) AS category_tag                  -- Standardizes category to lowercase
+FROM PRODUCT;
+
+-- Handling Null Values: Provide a placeholder for missing contact info
+-- Uses contact_number/phone_number from the PATIENT or SUPPLIER tables [cite: 528, 579]
+SELECT 
+    patient_id, 
+    COALESCE(contact_number, '000-000-0000') AS contact_status -- Returns first non-null value
+FROM PATIENT;
+
+-- Casting/Conversion: Convert numeric IDs to text labels for custom reporting
+-- Uses batch_id from the BATCH table [cite: 530, 579]
+SELECT 
+    'BATCH_ID: ' || CAST(batch_id AS TEXT) AS custom_label, 
+    quantity_on_hand
+FROM BATCH;
