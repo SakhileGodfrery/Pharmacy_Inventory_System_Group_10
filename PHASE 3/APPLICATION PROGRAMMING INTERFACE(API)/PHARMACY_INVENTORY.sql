@@ -1147,3 +1147,106 @@ LEFT JOIN "STOCK BATCH" sb ON p.PRODUCT_ID = sb.PRODUCT_ID
 GROUP BY p.PRODUCT_ID, p.product_name, p.reorder_quantity
 HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_quantity * 1.5
 ORDER BY total_stock_on_hand ASC;
+
+
+SELECT '1a. Rounded Prices' AS query_label;
+SELECT product_name, price, 
+       ROUND(price, 2) AS rounded_price,
+       TRUNC(price, 2) AS truncated_price
+FROM product
+LIMIT 5;
+
+
+SELECT '1b. Rounded Transaction Totals' AS query_label;
+SELECT transaction_id, total_amount, 
+       ROUND(total_amount, 2) AS rounded_total,
+       TRUNC(total_amount, 2) AS truncated_total
+FROM sale_transaction
+LIMIT 5;
+
+
+SELECT '1c. Rounded Average Unit Cost' AS query_label;
+SELECT product_id, 
+       ROUND(AVG(unit_cost), 2) AS rounded_avg_cost
+FROM stock_batch
+GROUP BY product_id
+LIMIT 5;
+
+
+SELECT '1d. CEIL and FLOOR on Quantities' AS query_label;
+SELECT batch_number, quantity, 
+       CEIL(quantity * 0.1) AS ten_percent_ceiling,
+       FLOOR(quantity * 0.1) AS ten_percent_floor
+FROM stock_batch
+LIMIT 5;
+
+
+SELECT '2a. Days Until Expiry' AS query_label;
+SELECT p.product_name, sb.batch_number, sb.expiry_date,
+       (sb.expiry_date - CURRENT_DATE) AS days_until_expiry
+FROM stock_batch sb
+JOIN product p ON sb.product_id = p.product_id
+WHERE sb.expiry_date > CURRENT_DATE
+ORDER BY days_until_expiry
+LIMIT 5;
+
+
+SELECT '2b. Batch Age (Interval & Days)' AS query_label;
+SELECT batch_number, received_date,
+       AGE(CURRENT_DATE, received_date) AS age_interval,
+       EXTRACT(DAY FROM AGE(CURRENT_DATE, received_date)) AS days_on_shelf
+FROM stock_batch
+LIMIT 5;
+
+
+SELECT '2c. Monthly Sales Totals' AS query_label;
+SELECT DATE_TRUNC('month', transaction_date) AS sales_month,
+       SUM(total_amount) AS monthly_total,
+       ROUND(SUM(total_amount), 2) AS rounded_monthly_total
+FROM sale_transaction
+GROUP BY sales_month
+ORDER BY sales_month;
+
+-- 2d. Extract date parts from transaction dates
+SELECT '2d. Extracted Date Parts' AS query_label;
+SELECT transaction_id, transaction_date,
+       EXTRACT(YEAR FROM transaction_date) AS year,
+       EXTRACT(MONTH FROM transaction_date) AS month,
+       EXTRACT(DAY FROM transaction_date) AS day,
+       EXTRACT(DOW FROM transaction_date) AS day_of_week
+FROM sale_transaction
+LIMIT 5;
+
+
+SELECT '2e. Expiring in Next 30 Days' AS query_label;
+SELECT p.product_name, sb.batch_number, sb.expiry_date,
+       (sb.expiry_date - CURRENT_DATE) AS days_left
+FROM stock_batch sb
+JOIN product p ON sb.product_id = p.product_id
+WHERE sb.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+ORDER BY sb.expiry_date;
+
+
+SELECT '2f. Batches Older than 1 Year' AS query_label;
+SELECT batch_number, received_date,
+       AGE(CURRENT_DATE, received_date) AS age
+FROM stock_batch
+WHERE received_date < CURRENT_DATE - INTERVAL '1 year';
+
+
+SELECT '2g. Patient Ages' AS query_label;
+SELECT first_name, last_name, date_of_birth,
+       AGE(CURRENT_DATE, date_of_birth) AS age_interval,
+       EXTRACT(YEAR FROM AGE(CURRENT_DATE, date_of_birth)) AS age_years
+FROM users
+WHERE roles = 'PATIENT';
+
+
+SELECT '3. Rounded Daily Sales (Last Month)' AS query_label;
+SELECT DATE_TRUNC('day', transaction_date) AS sale_day,
+       ROUND(SUM(total_amount), 2) AS daily_sales_rounded
+FROM sale_transaction
+WHERE transaction_date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+  AND transaction_date < DATE_TRUNC('month', CURRENT_DATE)
+GROUP BY sale_day
+ORDER BY sale_day;
