@@ -461,6 +461,234 @@ GROUP BY pr.product_id, pr.product_name, pr.reorder_qty, sup.supplier_name, sup.
 HAVING COALESCE(SUM(sb.quantity), 0) <= pr.reorder_qty
 ORDER BY current_stock ASC;
 
+-- Aggregate Functions 
+
+-- Aggregate functions summarise data across rows
+-- Functions used: COUNT, SUM, AVG, MIN, MAX, STDDEV, VARIANCE, STRING_AGG
+
+-- COUNT
+-- Purpose : Count total number of registered users per role
+SELECT
+    role,
+    COUNT(users_id) AS total_users
+FROM users
+GROUP BY role
+ORDER BY total_users DESC;
+
+-- COUNT DISTINCT 
+-- Purpose : Count number of unique products ever prescribed
+SELECT
+    COUNT(DISTINCT product_id) AS unique_products_prescribed
+FROM prescription_line;
+
+-- SUM
+-- Purpose : Sum total inventory value per product across all batches
+SELECT
+    p.product_id,
+    p.product_name,
+    p.category,
+    SUM(sb.quantity)                            AS total_units_in_stock,
+    SUM(sb.quantity * sb.unit_cost)             AS total_inventory_value,
+    ROUND(SUM(sb.quantity * sb.unit_cost), 2)   AS total_inventory_value_rounded
+FROM product p
+JOIN stock_batch sb ON p.product_id = sb.product_id
+GROUP BY p.product_id, p.product_name, p.category
+ORDER BY total_inventory_value DESC;
+
+-- SUM
+-- Purpose : Total revenue collected from all transactions
+SELECT
+    SUM(total_amount)               AS gross_revenue,
+    ROUND(SUM(total_amount), 2)     AS gross_revenue_rounded,
+    COUNT(transaction_id)           AS total_transactions,
+    ROUND(AVG(total_amount), 2)     AS average_transaction_value
+FROM transaction
+WHERE status = 'Completed';
+
+-- AVG 
+-- Purpose : Average price per product category
+SELECT
+    category,
+    COUNT(product_id)               AS product_count,
+    ROUND(AVG(price), 2)            AS average_price,
+    MIN(price)                      AS cheapest_product_price,
+    MAX(price)                      AS most_expensive_product_price
+FROM product
+GROUP BY category
+ORDER BY average_price DESC;
+
+-- MIN/MAX
+-- Purpose : Earliest and latest prescription dates per patient
+SELECT
+    pa.patient_id,
+    CONCAT(u.first_name, ' ', u.last_name)  AS patient_name,
+    COUNT(pr.prescription_id)               AS total_prescriptions,
+    MIN(pr.date_issued)                     AS first_prescription_date,
+    MAX(pr.date_issued)                     AS most_recent_prescription_date,
+    (MAX(pr.date_issued) - MIN(pr.date_issued)) AS days_as_patient
+FROM patient pa
+JOIN users u        ON pa.user_id       = u.users_id
+JOIN prescription pr ON pa.patient_id  = pr.patient_id
+GROUP BY pa.patient_id, u.first_name, u.last_name
+ORDER BY total_prescriptions DESC;
+
+-- MIN/MAX
+-- Purpose : Cheapest and most expensive batch unit costs per product, also showing
+-- the spread (price range)
+SELECT
+    p.product_name,
+    COUNT(sb.batch_id)                      AS number_of_batches,
+    MIN(sb.unit_cost)                       AS min_unit_cost,
+    MAX(sb.unit_cost)                       AS max_unit_cost,
+    ROUND(AVG(sb.unit_cost), 2)             AS avg_unit_cost,
+    ROUND(MAX(sb.unit_cost) - MIN(sb.unit_cost), 2) AS price_spread
+FROM stock_batch sb
+JOIN product p ON sb.product_id = p.product_id
+GROUP BY p.product_name
+ORDER BY price_spread DESC;
+
+-- SUM + COUNT
+-- Purpose : Total stock received per stock controller
+SELECT
+    sc.controller_id,
+    CONCAT(u.first_name, ' ', u.last_name)  AS controller_name,
+    COUNT(sb.batch_id)                      AS batches_received,
+    SUM(sb.quantity)                        AS total_units_received,
+    ROUND(SUM(sb.unit_cost * sb.quantity), 2) AS total_stock_value_received,
+    MIN(sb.received_date)                   AS first_receipt_date,
+    MAX(sb.received_date)                   AS last_receipt_date
+FROM stock_controller sc
+JOIN users u         ON sc.user_id       = u.users_id
+JOIN stock_batch sb  ON sc.controller_id = sb.controller_id
+GROUP BY sc.controller_id, u.first_name, u.last_name
+ORDER BY total_units_received DESC;
+
+-- STDDV / VARIANCE
+-- Purpose : Statistical analysis of product prices to understand price consistency
+-- the pharmacy catalogue
+SELECT
+    category,
+    COUNT(product_id)               AS product_count,
+    ROUND(AVG(price), 2)            AS mean_price,
+    ROUND(STDDEV(price), 2)         AS price_std_deviation,
+    ROUND(VARIANCE(price), 2)       AS price_variance,
+    MIN(price)                      AS min_price,
+    MAX(price)                      AS max_price
+FROM product
+GROUP BY category
+ORDER BY price_std_deviation DESC;
+
+-- COUNT(*) vs COUNT(column)
+-- Purpose : Illustrating the difference: COUNT(*) counts all rows; COUNT(column) ignores NULLS
+SELECT
+    COUNT(*)                        AS all_batches,
+    COUNT(manuf_date)               AS batches_with_manuf_date,
+    COUNT(*) - COUNT(manuf_date)    AS batches_missing_manuf_date,
+    COUNT(storage_conditions)       AS batches_with_storage_info,
+    SUM(quantity)                   AS total_units_across_all_batches,
+    ROUND(AVG(unit_cost), 2)        AS avg_unit_cost
+FROM stock_batch;
+
+-- Aggregate on transactions
+-- Purpose : Revenue summary by payment method
+SELECT
+    payment_method,
+    COUNT(transaction_id)           AS transaction_count,
+    ROUND(SUM(total_amount), 2)     AS total_revenue,
+    ROUND(AVG(total_amount), 2)     AS avg_transaction_value,
+    MIN(total_amount)               AS smallest_transaction,
+    MAX(total_amount)               AS largest_transaction
+FROM transaction
+WHERE status = 'Completed'
+GROUP BY payment_method
+ORDER BY total_revenue DESC;
+
+-- STRING AGG
+-- Purpose ; Aggregate product names into a comma-separated list per supplier 
+-- (useful for supplier summary reports)
+SELECT
+    s.sname                         AS supplier_name,
+    COUNT(p.product_id)             AS product_count,
+    STRING_AGG(p.product_name, ', ' ORDER BY p.product_name) AS products_supplied,
+    ROUND(AVG(p.price), 2)          AS avg_product_price,
+    MIN(p.price)                    AS cheapest_product,
+    MAX(p.price)                    AS most_expensive_product
+FROM supplier s
+JOIN product p ON s.supplier_id = p.supplier_id
+GROUP BY s.sname
+ORDER BY product_count DESC;
+
+-- Aggregate on purchase orders
+-- Purpose : Total ordered and cost per supplier
+SELECT
+    s.sname                                             AS supplier_name,
+    COUNT(DISTINCT po.order_id)                         AS total_orders,
+    COUNT(pol.product_id)                               AS total_order_lines,
+    SUM(pol.quantity_ordered)                           AS total_units_ordered,
+    ROUND(SUM(pol.quantity_ordered * pol.unit_cost), 2) AS total_amount_ordered,
+    ROUND(AVG(pol.unit_cost), 2)                        AS avg_unit_cost
+FROM supplier s
+JOIN purchase_order po      ON s.supplier_id  = po.supplier_id
+JOIN purchase_order_line pol ON po.order_id   = pol.order_id
+GROUP BY s.sname
+ORDER BY total_amount_ordered DESC;
+
+-- COMPREHENSIVE AGGREGATE
+-- Purpose : Full pharmacy performance dashboard
+-- Single query summarising key KPIs across the entire system
+SELECT
+    'Total Patients'                AS metric,
+    COUNT(*)::TEXT                  AS value
+FROM patient
+
+UNION ALL
+
+SELECT 'Total Products',            COUNT(*)::TEXT          FROM product
+UNION ALL
+SELECT 'Total Prescriptions',       COUNT(*)::TEXT          FROM prescription
+UNION ALL
+SELECT 'Total Transactions',        COUNT(*)::TEXT          FROM transaction
+UNION ALL
+SELECT 'Total Suppliers',           COUNT(*)::TEXT          FROM supplier
+UNION ALL
+SELECT 'Total Stock Batches',       COUNT(*)::TEXT          FROM stock_batch
+
+UNION ALL
+
+SELECT
+    'Total Inventory Units',
+    SUM(quantity)::TEXT
+FROM stock_batch
+
+UNION ALL
+
+SELECT
+    'Gross Revenue (R)',
+    ROUND(SUM(total_amount), 2)::TEXT
+FROM transaction
+WHERE status = 'Completed'
+
+UNION ALL
+
+SELECT
+    'Batches Expiring in 30 Days',
+    COUNT(*)::TEXT
+FROM stock_batch
+WHERE expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+
+UNION ALL
+
+SELECT
+    'Products Below Reorder Level',
+    COUNT(*)::TEXT
+FROM (
+    SELECT p.product_id
+    FROM product p
+    LEFT JOIN stock_batch sb ON p.product_id = sb.product_id
+    GROUP BY p.product_id, p.reorder_qty
+    HAVING COALESCE(SUM(sb.quantity), 0) < p.reorder_qty
+) AS low_stock;
+
 
 
 -- Sub - query 1: Find all patients who have at least one prescription
