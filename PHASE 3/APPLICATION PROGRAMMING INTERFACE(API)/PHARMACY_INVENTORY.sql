@@ -143,7 +143,7 @@ CREATE TABLE prescription_line (
 CREATE TABLE sale_transaction (
     transaction_id  BIGSERIAL PRIMARY KEY,
     transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    total_amount    DECIMAL(10,2) NOT NULL
+    total_amount    DECIMAL(10,2) NOT NULL,
     type            VARCHAR(20) NOT NULL, 
     patient_id      INT,
     pharmacist_id   INT NOT NULL,
@@ -320,7 +320,6 @@ INSERT INTO purchase_order (order_date, supplier_id, delivery_date, status) VALU
 
 -- 10. PURCHASE_ORDER_LINE 
 INSERT INTO purchase_order_line (order_id, product_id, quantity_ordered, unit_cost) VALUES
-<<<<<<< HEAD
 (1, 1, 500, 15.50),
 (1, 3, 200, 11.25),
 (2, 2, 150, 22.00),
