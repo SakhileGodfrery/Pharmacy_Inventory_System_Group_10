@@ -1,5 +1,12 @@
 --PHARMACY INVENTORY DATABASE: GROUP 10
 
+--Check if there is an existing database with the same name and deleting it
+DROP DATABASE pharmacy_inventory;
+--Create a new one if does not exists
+CREATE DATABASE pharmacy_inventory;
+
+--Creating tables
+
 -- TABLE : USER 
 CREATE TABLE users (
     users_id       BIGSERIAL PRIMARY KEY,
