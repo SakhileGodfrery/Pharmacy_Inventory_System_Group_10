@@ -1,6 +1,14 @@
+--PHARMACY INVENTORY DATABASE: GROUP 10
+
+--Check if there is an existing database with the same name and deleting it
+DROP DATABASE pharmacy_inventory;
+--Create a new one if does not exists
+CREATE DATABASE pharmacy_inventory;
+
+--Creating tables
+
 -- TABLE : USER 
 CREATE TABLE users (
-
     users_id       BIGSERIAL PRIMARY KEY,
     first_name     VARCHAR(50) NOT NULL,
     last_name      VARCHAR(50) NOT NULL,
@@ -8,7 +16,7 @@ CREATE TABLE users (
     roles          VARCHAR(20) NOT NULL,
     email          VARCHAR(100) UNIQUE NOT NULL,
     phone          VARCHAR(20),
-    home_address   VARCHAR(200),
+    home_address        VARCHAR(200),
     password_hash  VARCHAR(100) NOT NULL, 
     gender         CHAR(1) CHECK (gender IN ('M', 'F', 'O')),
     country        VARCHAR(50),
@@ -61,7 +69,6 @@ CREATE TABLE supplier (
     payment_term    VARCHAR(30),
     reg_number      VARCHAR(50) UNIQUE
 );
-
 
 -- TABLE : PRODUCT
 CREATE TABLE product (
@@ -143,15 +150,15 @@ CREATE TABLE prescription_line (
 CREATE TABLE sale_transaction (
     transaction_id  BIGSERIAL PRIMARY KEY,
     transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    total_amount    DECIMAL(10,2) NOT NULL
-    type            VARCHAR(20) NOT NULL, 
+    type            VARCHAR(20) NOT NULL,
+    total_amount    DECIMAL(10,2) NOT NULL,
     patient_id      INT,
     pharmacist_id   INT NOT NULL,
     CONSTRAINT fk_transaction_patient FOREIGN KEY (patient_id) REFERENCES patient(patient_id),
     CONSTRAINT fk_transaction_pharmacist FOREIGN KEY (pharmacist_id) REFERENCES pharmacist(pharmacist_id)
 );
 
--- TABLE: SALES_LINE 
+-- TABLE : SALES_LINE 
 CREATE TABLE sales_line (
     transaction_id  INT NOT NULL,
     product_id      INT NOT NULL,
@@ -320,7 +327,6 @@ INSERT INTO purchase_order (order_date, supplier_id, delivery_date, status) VALU
 
 -- 10. PURCHASE_ORDER_LINE 
 INSERT INTO purchase_order_line (order_id, product_id, quantity_ordered, unit_cost) VALUES
-<<<<<<< HEAD
 (1, 1, 500, 15.50),
 (1, 3, 200, 11.25),
 (2, 2, 150, 22.00),
@@ -461,792 +467,501 @@ GROUP BY pr.product_id, pr.product_name, pr.reorder_qty, sup.supplier_name, sup.
 HAVING COALESCE(SUM(sb.quantity), 0) <= pr.reorder_qty
 ORDER BY current_stock ASC;
 
--- Aggregate Functions 
 
--- Aggregate functions summarise data across rows
--- Functions used: COUNT, SUM, AVG, MIN, MAX, STDDEV, VARIANCE, STRING_AGG
+--QUERY LIMITATIONS - ROWS & COLUMNS 
 
--- COUNT
--- Purpose : Count total number of registered users per role
-SELECT
-    role,
-    COUNT(users_id) AS total_users
-FROM users
-GROUP BY role
-ORDER BY total_users DESC;
+-- Query 4: Display only top 5 best-selling products with limited columns
+-- Purpose: Quick view of best performing products
+SELECT 
+    pr.product_name,
+    SUM(sl.quantity_sold) AS total_sold,
+    SUM(sl.quantity_sold * sl.selling_price) AS revenue
+FROM product pr
+JOIN sales_line sl ON pr.product_id = sl.product_id
+GROUP BY pr.product_name
+ORDER BY revenue DESC
+FETCH FIRST 5 ROWS ONLY;
 
--- COUNT DISTINCT 
--- Purpose : Count number of unique products ever prescribed
-SELECT
-    COUNT(DISTINCT product_id) AS unique_products_prescribed
-FROM prescription_line;
+-- Query 5: Show recent transactions with specific columns only
+-- Purpose: Display recent sales without overwhelming detail
+SELECT 
+    st.transaction_id,
+    st.transaction_date,
+    CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
+    st.total_amount
+FROM sale_transaction st
+LEFT JOIN patient pa ON st.patient_id = pa.patient_id
+LEFT JOIN users u ON pa.users_id = u.users_id
+WHERE st.type = 'SALE'
+ORDER BY st.transaction_date DESC
+LIMIT 10;
 
--- SUM
--- Purpose : Sum total inventory value per product across all batches
-SELECT
-    p.product_id,
-    p.product_name,
-    p.category,
-    SUM(sb.quantity)                            AS total_units_in_stock,
-    SUM(sb.quantity * sb.unit_cost)             AS total_inventory_value,
-    ROUND(SUM(sb.quantity * sb.unit_cost), 2)   AS total_inventory_value_rounded
-FROM product p
-JOIN stock_batch sb ON p.product_id = sb.product_id
-GROUP BY p.product_id, p.product_name, p.category
-ORDER BY total_inventory_value DESC;
+-- SORTING OPERATIONS 
 
--- SUM
--- Purpose : Total revenue collected from all transactions
-SELECT
-    SUM(total_amount)               AS gross_revenue,
-    ROUND(SUM(total_amount), 2)     AS gross_revenue_rounded,
-    COUNT(transaction_id)           AS total_transactions,
-    ROUND(AVG(total_amount), 2)     AS average_transaction_value
-FROM transaction
-WHERE status = 'Completed';
-
--- AVG 
--- Purpose : Average price per product category
-SELECT
+-- Query 6: Products sorted by price (descending) and name (ascending)
+-- Purpose: Analyze product pricing structure
+SELECT 
+    product_name,
     category,
-    COUNT(product_id)               AS product_count,
-    ROUND(AVG(price), 2)            AS average_price,
-    MIN(price)                      AS cheapest_product_price,
-    MAX(price)                      AS most_expensive_product_price
+    price,
+    dosage
 FROM product
-GROUP BY category
-ORDER BY average_price DESC;
+ORDER BY price DESC, product_name ASC;
 
--- MIN/MAX
--- Purpose : Earliest and latest prescription dates per patient
-SELECT
-    pa.patient_id,
-    CONCAT(u.first_name, ' ', u.last_name)  AS patient_name,
-    COUNT(pr.prescription_id)               AS total_prescriptions,
-    MIN(pr.date_issued)                     AS first_prescription_date,
-    MAX(pr.date_issued)                     AS most_recent_prescription_date,
-    (MAX(pr.date_issued) - MIN(pr.date_issued)) AS days_as_patient
-FROM patient pa
-JOIN users u        ON pa.user_id       = u.users_id
-JOIN prescription pr ON pa.patient_id  = pr.patient_id
-GROUP BY pa.patient_id, u.first_name, u.last_name
-ORDER BY total_prescriptions DESC;
+-- Query 7: Suppliers sorted by status and company name
+-- Purpose: Supplier management overview
+SELECT 
+    supplier_name,
+    status,
+    payment_term,
+    phone,
+    email
+FROM supplier
+ORDER BY status DESC, supplier_name ASC;
 
--- MIN/MAX
--- Purpose : Cheapest and most expensive batch unit costs per product, also showing
--- the spread (price range)
-SELECT
-    p.product_name,
-    COUNT(sb.batch_id)                      AS number_of_batches,
-    MIN(sb.unit_cost)                       AS min_unit_cost,
-    MAX(sb.unit_cost)                       AS max_unit_cost,
-    ROUND(AVG(sb.unit_cost), 2)             AS avg_unit_cost,
-    ROUND(MAX(sb.unit_cost) - MIN(sb.unit_cost), 2) AS price_spread
-FROM stock_batch sb
-JOIN product p ON sb.product_id = p.product_id
-GROUP BY p.product_name
-ORDER BY price_spread DESC;
+-- LIKE, AND, OR OPERATORS 
 
--- SUM + COUNT
--- Purpose : Total stock received per stock controller
-SELECT
-    sc.controller_id,
-    CONCAT(u.first_name, ' ', u.last_name)  AS controller_name,
-    COUNT(sb.batch_id)                      AS batches_received,
-    SUM(sb.quantity)                        AS total_units_received,
-    ROUND(SUM(sb.unit_cost * sb.quantity), 2) AS total_stock_value_received,
-    MIN(sb.received_date)                   AS first_receipt_date,
-    MAX(sb.received_date)                   AS last_receipt_date
-FROM stock_controller sc
-JOIN users u         ON sc.user_id       = u.users_id
-JOIN stock_batch sb  ON sc.controller_id = sb.controller_id
-GROUP BY sc.controller_id, u.first_name, u.last_name
-ORDER BY total_units_received DESC;
-
--- STDDV / VARIANCE
--- Purpose : Statistical analysis of product prices to understand price consistency
--- the pharmacy catalogue
-SELECT
-    category,
-    COUNT(product_id)               AS product_count,
-    ROUND(AVG(price), 2)            AS mean_price,
-    ROUND(STDDEV(price), 2)         AS price_std_deviation,
-    ROUND(VARIANCE(price), 2)       AS price_variance,
-    MIN(price)                      AS min_price,
-    MAX(price)                      AS max_price
-FROM product
-GROUP BY category
-ORDER BY price_std_deviation DESC;
-
--- COUNT(*) vs COUNT(column)
--- Purpose : Illustrating the difference: COUNT(*) counts all rows; COUNT(column) ignores NULLS
-SELECT
-    COUNT(*)                        AS all_batches,
-    COUNT(manuf_date)               AS batches_with_manuf_date,
-    COUNT(*) - COUNT(manuf_date)    AS batches_missing_manuf_date,
-    COUNT(storage_conditions)       AS batches_with_storage_info,
-    SUM(quantity)                   AS total_units_across_all_batches,
-    ROUND(AVG(unit_cost), 2)        AS avg_unit_cost
-FROM stock_batch;
-
--- Aggregate on transactions
--- Purpose : Revenue summary by payment method
-SELECT
-    payment_method,
-    COUNT(transaction_id)           AS transaction_count,
-    ROUND(SUM(total_amount), 2)     AS total_revenue,
-    ROUND(AVG(total_amount), 2)     AS avg_transaction_value,
-    MIN(total_amount)               AS smallest_transaction,
-    MAX(total_amount)               AS largest_transaction
-FROM transaction
-WHERE status = 'Completed'
-GROUP BY payment_method
-ORDER BY total_revenue DESC;
-
--- STRING AGG
--- Purpose ; Aggregate product names into a comma-separated list per supplier 
--- (useful for supplier summary reports)
-SELECT
-    s.sname                         AS supplier_name,
-    COUNT(p.product_id)             AS product_count,
-    STRING_AGG(p.product_name, ', ' ORDER BY p.product_name) AS products_supplied,
-    ROUND(AVG(p.price), 2)          AS avg_product_price,
-    MIN(p.price)                    AS cheapest_product,
-    MAX(p.price)                    AS most_expensive_product
-FROM supplier s
-JOIN product p ON s.supplier_id = p.supplier_id
-GROUP BY s.sname
-ORDER BY product_count DESC;
-
--- Aggregate on purchase orders
--- Purpose : Total ordered and cost per supplier
-SELECT
-    s.sname                                             AS supplier_name,
-    COUNT(DISTINCT po.order_id)                         AS total_orders,
-    COUNT(pol.product_id)                               AS total_order_lines,
-    SUM(pol.quantity_ordered)                           AS total_units_ordered,
-    ROUND(SUM(pol.quantity_ordered * pol.unit_cost), 2) AS total_amount_ordered,
-    ROUND(AVG(pol.unit_cost), 2)                        AS avg_unit_cost
-FROM supplier s
-JOIN purchase_order po      ON s.supplier_id  = po.supplier_id
-JOIN purchase_order_line pol ON po.order_id   = pol.order_id
-GROUP BY s.sname
-ORDER BY total_amount_ordered DESC;
-
--- COMPREHENSIVE AGGREGATE
--- Purpose : Full pharmacy performance dashboard
--- Single query summarising key KPIs across the entire system
-SELECT
-    'Total Patients'                AS metric,
-    COUNT(*)::TEXT                  AS value
-FROM patient
-
-UNION ALL
-
-SELECT 'Total Products',            COUNT(*)::TEXT          FROM product
-UNION ALL
-SELECT 'Total Prescriptions',       COUNT(*)::TEXT          FROM prescription
-UNION ALL
-SELECT 'Total Transactions',        COUNT(*)::TEXT          FROM transaction
-UNION ALL
-SELECT 'Total Suppliers',           COUNT(*)::TEXT          FROM supplier
-UNION ALL
-SELECT 'Total Stock Batches',       COUNT(*)::TEXT          FROM stock_batch
-
-UNION ALL
-
-SELECT
-    'Total Inventory Units',
-    SUM(quantity)::TEXT
-FROM stock_batch
-
-UNION ALL
-
-SELECT
-    'Gross Revenue (R)',
-    ROUND(SUM(total_amount), 2)::TEXT
-FROM transaction
-WHERE status = 'Completed'
-
-UNION ALL
-
-SELECT
-    'Batches Expiring in 30 Days',
-    COUNT(*)::TEXT
-FROM stock_batch
-WHERE expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
-
-UNION ALL
-
-SELECT
-    'Products Below Reorder Level',
-    COUNT(*)::TEXT
-FROM (
-    SELECT p.product_id
-    FROM product p
-    LEFT JOIN stock_batch sb ON p.product_id = sb.product_id
-    GROUP BY p.product_id, p.reorder_qty
-    HAVING COALESCE(SUM(sb.quantity), 0) < p.reorder_qty
-) AS low_stock;
-
-
-
--- Sub - query 1: Find all patients who have at least one prescription
-SELECT
-    p.patient_id,
-    u.first_name || ’ ’ || u.last_name AS patient_name,
-    u.email,
-    u.phone
-    FROM patient p
-    INNER JOIN users u ON p.users_id = u.users_id
-    WHERE p.patient_id IN (
-    SELECT DISTINCT patient_id
-    FROM prescription
-    WHERE patient_id IS NOT NULL
-    )
-    ORDER BY u.last_name ASC ;
-
-
--- Sub - query 2: Find patients registered in the system but with no prescription on record
-SELECT
-    p.patient_id,
-    u.first_name || ’ ’ || u.last_name AS patient_name,
-    u.email,
+-- Query 8: Search for allergy patients with specific conditions
+-- Purpose: Find patients with certain allergies
+SELECT 
+    CONCAT(u.first_name, ' ', u.last_name) AS patient_name,
+    a.allergy_name,
     u.phone,
-    u.reg_date AS
-    registration_date
-    FROM patient p
-    INNER JOIN users u ON p.users_id = u.users_id
-    WHERE p.patient_id NOT IN (
-    SELECT DISTINCT patient_id
-    FROM prescription
-    WHERE patient_id IS NOT NULL
-    )
-    ORDER BY u . reg_date ASC ;
+    u.email
+FROM allergy a
+JOIN patient p ON a.patient_id = p.patient_id
+JOIN users u ON p.users_id = u.users_id
+WHERE a.allergy_name LIKE '%cillin%'  -- LIKE operator
+   OR a.allergy_name LIKE 'Aspirin'    -- OR operator
+   AND u.country = 'USA';               -- AND operator
 
-
--- Sub - query 3: Products With Stock Below Their Reorder Level
-SELECT
-    p.product_id,
-    p.product_name,
-    p.category,
-    p.reorder_qty AS
-    reorder_threshold,
-    (
-    SELECT COALESCE (SUM(sb.quantity), 0)
-    FROM stock_batch sb
-    WHERE sb.product_id = p.product_id
-    AND sb.expiry_date > CURRENT_DATE
-    ) AS current_stock,
-    p.price
-    FROM product p
-    WHERE (
-    SELECT COALESCE (SUM(sb.quantity), 0)
-    FROM stock_batch sb
-    WHERE sb.product_id = p.product_id
-    AND sb.expiry_date > CURRENT_DATE
-    ) < p.reorder_qty
-    ORDER BY current_stock ASC ;
-
-
--- Sub-query 4: Pharmacists Who Processed More Than the Average Number of Transactions
-SELECT
-    ph.pharmacist_id,
-    u.first_name || ’ ’ || u.last_name AS pharmacist_name,
-    u.email,
-    ph.license_number,
-    ph.status,
-    COUNT (st.transaction_id) AS
-    total_transactions
-    FROM pharmacist ph
-    INNER JOIN users u
-    ON ph.users_id = u.users_id
-    INNER JOIN sale_transaction st
-    ON ph.pharmacist_id = st.pharmacist_id
-    GROUP BY ph.pharmacist_id, u.first_name,
-    u.last_name, u.email,
-    ph.license_number, ph.status
-    HAVING COUNT (st.transaction_id) > (
-    SELECT AVG(txn_count)
-    FROM (
-    SELECT pharmacist_id ,
-    COUNT (transaction_id) AS txn_count
-    FROM sale_transaction
-    GROUP BY pharmacist_id
-    ) AS pharmacist_totals
-    )
-    ORDER BY total_transactions DESC ;
-
-
- -- Sub-Query 5: Products That Have Never Been Dispensed in Any Sale Transaction
-SELECT
-    p.product_id,
-    p.product_name,
-    p.category,
-    p.price,
-    p.reorder_qty,
-    p.storage_req
-    FROM product p
-    WHERE NOT EXISTS (
-    SELECT 1
-    FROM sales_line sl
-    WHERE sl.product_id = p.product_id
-    )
-    ORDER BY p.category ASC, p.product_name ASC;
-
-
--- =============================================
--- QUERIES DEMONSTRATING LIKE, AND, OR OPERATORS
--- WITH CHARACTER FUNCTIONS
--- =============================================
-
--- Query 4: Find products with specific naming patterns using LIKE operator
--- Purpose: Search for products by name patterns (e.g., starting with 'A' or containing 'statin')
-SELECT 
-    product_name,
-    UPPER(product_name) AS product_upper,
-    LOWER(category) AS category_lower,
-    INITCAP(description) AS description_proper
-FROM product
-WHERE product_name LIKE 'A%'  
-   OR product_name LIKE '%statin%';
-
--- Query 5: Find suppliers with specific patterns using AND/OR
--- Purpose: Filter suppliers based on name patterns and active status
-SELECT 
-    supplier_name,
-    email,
-    UPPER(supplier_name) AS supplier_upper,
-    LOWER(email) AS email_lower,
-    LENGTH(phone) AS phone_digit_count
-FROM supplier
-WHERE (supplier_name LIKE '%Supply%' OR email LIKE '%@medisource.com')
-  AND status = 'ACTIVE'
-  AND LENGTH(phone) > 8;
-
--- Query 6: Find users with name patterns and email domains
--- Purpose: User search with multiple pattern conditions
-SELECT 
-    users_id,
-    first_name || ' ' || last_name AS full_name,
-    UPPER(last_name) AS last_name_upper,
-    SUBSTRING(email, 1, POSITION('@' IN email) - 1) AS email_username,
-    country
-FROM users
-WHERE (first_name LIKE 'J%' OR last_name LIKE 'S%')
-  AND email LIKE '%@pharmacy.com'
-  AND country = 'USA';
-
--- Query 7: Complex product search with description keywords
--- Purpose: Find products by description content and price range
-SELECT 
-    product_id,
-    product_name,
-    description,
-    UPPER(category) AS category_upper,
-    REPLACE(description, ' ', '_') AS description_underscored,
-    POSITION('blood' IN LOWER(description)) AS keyword_position
-FROM product
-WHERE (LOWER(product_name) LIKE '%amox%' OR LOWER(description) LIKE '%antibiotic%')
-  AND category = 'Antibiotics'
-  AND price > 20.00;
-
--- Query 8: Email pattern validation and classification
--- Purpose: Categorize users by email domain patterns
-SELECT 
-    users_id,
-    email,
-    SUBSTRING(email FROM POSITION('@' IN email) + 1) AS email_domain,
-    CASE 
-        WHEN email LIKE '%.com' THEN '.com user'
-        WHEN email LIKE '%.org' THEN '.org user'
-        ELSE 'other'
-    END AS email_type
-FROM users
-WHERE (email LIKE '%@pharmacy.com' OR email LIKE '%@email.com')
-  AND LENGTH(phone) = 8
-  AND roles IN ('PHARMACIST', 'STOCK_CONTROLLER');
-
--- Query 9: Batch number pattern matching
--- Purpose: Find inventory batches with specific numbering patterns
-SELECT 
-    batch_number,
-    product_id,
-    quantity,
-    unit_cost,
-    SUBSTRING(batch_number, 1, 4) AS batch_prefix,
-    RIGHT(batch_number, 3) AS batch_suffix
-FROM stock_batch
-WHERE (batch_number LIKE '%-%' 
-   AND batch_number LIKE '%001%')
-   OR batch_number LIKE '%-00_';
-
--- Query 10: Address pattern search with formatting
--- Purpose: Find users by address patterns and standardize address format
-SELECT 
-    first_name || ' ' || last_name AS full_name,
-    home_address,
-    UPPER(SUBSTRING(home_address FROM '\\w+$')) AS last_word_upper,
-    REPLACE(home_address, 'St', 'Street') AS address_formatted
-FROM users
-WHERE (home_address LIKE '%Main%' OR home_address LIKE '%Oak%')
-  AND country = 'USA'
-  AND LENGTH(home_address) > 10;
-
--- Query 11: Supplier pattern search with custom codes
--- Purpose: Create custom supplier identifiers based on patterns
-SELECT 
-    supplier_name,
-    COALESCE(phone, 'No Phone') AS contact_info,
-    status,
-    UPPER(payment_term) AS payment_upper,
-    CONCAT(LEFT(supplier_name, 3), '-', RIGHT(reg_number, 3)) AS custom_code
-FROM supplier
-WHERE (supplier_name LIKE '%Distributors%' 
-   OR email LIKE '%@globalpharma%')
-  AND status = 'ACTIVE'
-  AND payment_term IN ('Net 30', 'Net 45')
-  AND LENGTH(reg_number) >= 5;
-
--- Query 12: Product category pattern analysis
--- Purpose: Classify drugs based on naming patterns
-SELECT 
-    product_name,
-    category,
-    CASE 
-        WHEN product_name LIKE '%cillin' THEN 'Penicillin Type'
-        WHEN product_name LIKE '%statin' THEN 'Statin Type'
-        ELSE 'Other'
-    END AS drug_class,
-    UPPER(LEFT(product_name, 5)) AS name_prefix,
-    LENGTH(description) AS desc_length
-FROM product
-WHERE (LOWER(category) LIKE '%cardio%' OR category LIKE '%Antibiotics%')
-  AND price BETWEEN 20 AND 50
-  AND LENGTH(product_name) > 8;
-
--- Query 13: Purchase order status pattern search
--- Purpose: Analyze order statuses with pattern matching
-SELECT 
-    order_id,
-    status,
-    order_date,
-    delivery_date,
-    UPPER(status) AS status_upper,
-    CASE 
-        WHEN status LIKE 'DELIVER%' THEN 'Delivered'
-        WHEN status LIKE 'PEND%' THEN 'Pending'
-        WHEN status LIKE 'CANCEL%' THEN 'Cancelled'
-        ELSE 'Other'
-    END AS status_category
-FROM purchase_order
-WHERE (status LIKE 'DELIV%' OR status LIKE 'PEND%')
-  AND order_date >= '2024-01-01'
-  AND (delivery_date IS NOT NULL OR status = 'PENDING')
-  AND EXTRACT(MONTH FROM order_date) IN (1, 2, 3, 4, 5);
-
--- Query 14: Product price pattern analysis
--- Purpose: Find products in specific price ranges with pattern matching
+-- Query 9: Find products with specific price range and name pattern
+-- Purpose: Product search with multiple criteria
 SELECT 
     product_name,
     price,
     category,
-    CASE 
-        WHEN price < 20 THEN 'Budget'
-        WHEN price BETWEEN 20 AND 50 THEN 'Standard'
-        WHEN price > 50 THEN 'Premium'
-    END AS price_tier,
-    ROUND(price, 0) AS rounded_price
+    dosage
 FROM product
-WHERE (category LIKE '%Cardio%' OR category LIKE '%Antibiotics%')
-  AND price BETWEEN 15 AND 60
-  AND product_name LIKE '%mg'
-ORDER BY price DESC;
+WHERE price BETWEEN 20.00 AND 50.00
+  AND (product_name LIKE '%mycin%' OR product_name LIKE '%pril%')
+  AND category = 'Antibiotics'
+ORDER BY price;
 
--- Query 15: Emergency contact pattern search
--- Purpose: Find suppliers with specific phone number patterns
+-- VARIABLES & CHARACTER FUNCTIONS 
+
+-- Query 10: Format patient information using character functions
+-- Purpose: Create formatted patient labels for correspondence
+DO $$ 
+DECLARE 
+    v_patient_name VARCHAR(100);
+    v_patient_id INT := 1;
+    v_formatted_output VARCHAR(500);
+BEGIN
+    SELECT 
+        CONCAT(
+            UPPER(SUBSTRING(u.first_name, 1, 1)), 
+            LOWER(SUBSTRING(u.first_name, 2)),
+            ' ',
+            UPPER(u.last_name),
+            ' (ID: ',
+            LPAD(p.patient_id::VARCHAR, 5, '0'),
+            ')'
+        )
+    INTO v_patient_name
+    FROM patient p
+    JOIN users u ON p.users_id = u.users_id
+    WHERE p.patient_id = v_patient_id;
+    
+    v_formatted_output := CONCAT(
+        'Patient Information: ', v_patient_name,
+        CHR(10), 'Record generated: ', TO_CHAR(CURRENT_DATE, 'DD-Month-YYYY')
+    );
+    
+    RAISE NOTICE '%', v_formatted_output;
+END $$;
+
+-- Query 11: Format product codes and descriptions
+-- Purpose: Standardized product display format
 SELECT 
-    supplier_name,
-    phone,
-    status,
+    product_id,
+    UPPER(product_name) AS product_name_upper,
+    INITCAP(description) AS description_formatted,
+    CONCAT('R', TO_CHAR(price, '999.99')) AS price_formatted,
+    LENGTH(product_name) AS name_length,
+    POSITION('mg' IN dosage) AS mg_position
+FROM product
+WHERE dosage IS NOT NULL
+LIMIT 10;
+
+--ROUNDING/TRUNCATION 
+
+-- Query 12: Sales analysis with rounded values
+-- Purpose: Present revenue figures in simplified format
+SELECT 
+    pr.category,
+    COUNT(DISTINCT st.transaction_id) AS transaction_count,
+    ROUND(SUM(sl.quantity_sold * sl.selling_price), 0) AS revenue_rounded,
+    ROUND(SUM(sl.quantity_sold * sl.selling_price), -2) AS revenue_hundreds,
+    TRUNC(AVG(sl.selling_price), 1) AS avg_price_truncated,
+    ROUND(AVG(sl.selling_price), 2) AS avg_price_rounded
+FROM product pr
+JOIN sales_line sl ON pr.product_id = sl.product_id
+JOIN sale_transaction st ON sl.transaction_id = st.transaction_id
+GROUP BY pr.category;
+
+-- Query 13: Batch cost analysis with rounding
+-- Purpose: Analyze inventory costs with different precision levels
+SELECT 
+    p.product_name,
+    sb.batch_number,
+    sb.unit_cost,
+    ROUND(sb.unit_cost * 1.15, 2) AS retail_price_est,
+    TRUNC(sb.unit_cost * 0.9, 2) AS bulk_discount_price,
+    ROUND(sb.unit_cost / sb.quantity, 3) AS cost_per_unit
+FROM stock_batch sb
+JOIN product p ON sb.product_id = p.product_id
+WHERE sb.quantity > 0
+ORDER BY sb.unit_cost DESC
+LIMIT 10;
+
+-- DATE FUNCTIONS 
+
+-- Query 14: Expiry date tracking and alerts
+-- Purpose: Monitor product expiry dates and generate alerts
+SELECT 
+    p.product_name,
+    sb.batch_number,
+    sb.expiry_date,
+    CURRENT_DATE AS today,
+    (sb.expiry_date - CURRENT_DATE) AS days_until_expiry,
+    EXTRACT(YEAR FROM sb.expiry_date) AS expiry_year,
+    EXTRACT(MONTH FROM sb.expiry_date) AS expiry_month,
+    TO_CHAR(sb.expiry_date, 'Day, DD Month YYYY') AS expiry_date_formatted,
     CASE 
-        WHEN phone LIKE '800-%' THEN 'Toll Free'
-        WHEN phone LIKE '555-%' THEN 'Local'
-        ELSE 'Other'
-    END AS phone_type,
-    REPLACE(phone, '-', '') AS phone_digits_only
-FROM supplier
-WHERE (phone LIKE '800-%' OR phone LIKE '555-%')
-  AND status = 'ACTIVE'
-  AND LENGTH(phone) >= 10;
+        WHEN sb.expiry_date - CURRENT_DATE <= 30 THEN 'URGENT - EXPIRING SOON'
+        WHEN sb.expiry_date - CURRENT_DATE <= 90 THEN 'Warning - Check expiry'
+        ELSE 'OK'
+    END AS expiry_status
+FROM stock_batch sb
+JOIN product p ON sb.product_id = p.product_id
+ORDER BY sb.expiry_date ASC;
 
-SELECT 'All LIKE, AND, OR operator queries executed successfully!' AS execution_status;
-SELECT t.pharmacist_id, SUM(t.total_amount) AS total_sales
-FROM transaction t
-GROUP BY t.pharmacist_id
-HAVING SUM(t.total_amount) > 5000;
+-- Query 15: Monthly sales trend analysis
+-- Purpose: Track sales performance over time
+SELECT 
+    DATE_TRUNC('month', st.transaction_date) AS sales_month,
+    TO_CHAR(st.transaction_date, 'Month YYYY') AS month_name,
+    COUNT(DISTINCT st.transaction_id) AS num_transactions,
+    SUM(st.total_amount) AS total_sales,
+    ROUND(AVG(st.total_amount), 2) AS avg_transaction_value,
+    EXTRACT(DOW FROM st.transaction_date) AS day_of_week
+FROM sale_transaction st
+WHERE st.type = 'SALE'
+  AND st.transaction_date >= DATE_TRUNC('year', CURRENT_DATE)
+GROUP BY DATE_TRUNC('month', st.transaction_date), 
+         TO_CHAR(st.transaction_date, 'Month YYYY'),
+         EXTRACT(DOW FROM st.transaction_date)
+ORDER BY sales_month DESC;
 
-SELECT t.patient_id, COUNT(*) AS num_transactions
-FROM transaction t
-GROUP BY t.patient_id
-HAVING COUNT(*) > 3;
+-- AGGREGATE FUNCTIONS 
 
-SELECT p.product_id, p.product_name, SUM(sl.quantity_sold) AS total_sold
+-- Query 16: Comprehensive pharmacy performance metrics
+-- Purpose: Overall business performance dashboard
+SELECT 
+    'Total Sales Revenue' AS metric_name,
+    SUM(total_amount)::VARCHAR AS value,
+    'R' AS unit
+FROM sale_transaction WHERE type = 'SALE'
+UNION ALL
+SELECT 
+    'Total Transactions',
+    COUNT(*)::VARCHAR,
+    ''
+FROM sale_transaction WHERE type = 'SALE'
+UNION ALL
+SELECT 
+    'Average Transaction Value',
+    ROUND(AVG(total_amount), 2)::VARCHAR,
+    'R'
+FROM sale_transaction WHERE type = 'SALE'
+UNION ALL
+SELECT 
+    'Total Products in Stock',
+    SUM(quantity)::VARCHAR,
+    'units'
+FROM stock_batch WHERE expiry_date > CURRENT_DATE
+UNION ALL
+SELECT 
+    'Total Patients Served',
+    COUNT(DISTINCT patient_id)::VARCHAR,
+    ''
+FROM sale_transaction WHERE patient_id IS NOT NULL
+UNION ALL
+SELECT 
+    'Unique Products Sold',
+    COUNT(DISTINCT product_id)::VARCHAR,
+    ''
+FROM sales_line
+UNION ALL
+SELECT 
+    'Total Profit (Est.)',
+    ROUND(SUM((sl.selling_price - sb.unit_cost) * sl.quantity_sold), 2)::VARCHAR,
+    'R'
 FROM sales_line sl
-JOIN product p ON sl.product_id = p.product_id
-GROUP BY p.product_id, p.product_name
-HAVING SUM(sl.quantity_sold) > 50;
+JOIN stock_batch sb ON sl.batch_id = sb.batch_id
+JOIN sale_transaction st ON sl.transaction_id = st.transaction_id
+WHERE st.type = 'SALE';
 
-SELECT p.product_id, p.product_name,
-       SUM(sl.quantity_sold * sl.selling_price) AS revenue
-FROM sales_line sl
-JOIN product p ON sl.product_id = p.product_id
-GROUP BY p.product_id, p.product_name
-HAVING SUM(sl.quantity_sold * sl.selling_price) > 10000;
+-- GROUP BY & HAVING CLAUSES 
 
-SELECT s.supplier_id, s.supplier_name, COUNT(p.product_id) AS total_products
-FROM supplier s
-JOIN product p ON s.supplier_id = p.supplier_id
-GROUP BY s.supplier_id, s.supplier_name
-HAVING COUNT(p.product_id) > 5;
-
-SELECT pr.pharmacist_id, COUNT(pr.prescription_id) AS total_prescriptions
-FROM prescription pr
-GROUP BY pr.pharmacist_id
-HAVING COUNT(pr.prescription_id) > 10;
-
-SELECT p.product_id, p.product_name,
-       SUM(pol.quantity_ordered) AS total_ordered
-FROM purchase_order_line pol
-JOIN product p ON pol.product_id = p.product_id
-GROUP BY p.product_id, p.product_name
-HAVING SUM(pol.quantity_ordered) > 100;
-
-SELECT t.pharmacist_id, COUNT(*) AS total_transactions
-FROM transaction t
-WHERE t.status = 'Completed'
-GROUP BY t.pharmacist_id
-HAVING COUNT(*) > 5;
-
-SELECT DATE(transaction_date) AS sale_date,
-       SUM(total_amount) AS daily_sales
-FROM transaction
-GROUP BY DATE(transaction_date)
-HAVING SUM(total_amount) > 2000;
-
-SELECT p.patient_id, COUNT(pr.prescription_id) AS total_prescriptions
-FROM patient p
-JOIN prescription pr ON p.patient_id = pr.patient_id
-GROUP BY p.patient_id
-HAVING COUNT(pr.prescription_id) > 2;
-
+-- Query 17: Product performance analysis with having clause
+-- Purpose: Identify underperforming and overperforming products
 SELECT 
-    sb.BATCH_ID,
-    sb.batch_number,
     p.product_name,
-    sb.quantity,
-    sb.expiry_date
-FROM "STOCK BATCH" sb
-INNER JOIN PRODUCT p ON sb.PRODUCT_ID = p.PRODUCT_ID;
-
-SELECT 
-    pr.PRESCRIPTION_ID,
-    pr.date_issued,
-    pr.doctor_name,
-    u.first_name AS patient_first_name,
-    u.last_name AS patient_last_name,
-    ph.license_number,
-    phu.first_name AS pharmacist_first_name,
-    phu.last_name AS pharmacist_last_name
-FROM PRESCRIPTION pr
-INNER JOIN PATIENT pa ON pr.PATIENT_ID = pa.PATIENT_ID
-INNER JOIN USER u ON pa.USER_ID = u.USER_ID
-INNER JOIN PHARMACIST ph ON pr.PHARMACIST_ID = ph.PHARMACIST_ID
-INNER JOIN USER phu ON ph.USER_ID = phu.USER_ID;
-
-SELECT 
-    p.PRODUCT_ID,
-    p.product_name,
-    sb.BATCH_ID,
-    sb.batch_number,
-    sb.quantity,
-    sb.expiry_date
-FROM PRODUCT p
-LEFT JOIN "STOCK BATCH" sb ON p.PRODUCT_ID = sb.PRODUCT_ID;
-
-SELECT 
-    p.PRODUCT_ID,
-    p.product_name,
-    SUM(sl.quantity_sold) AS total_quantity_sold,
+    p.category,
+    COUNT(DISTINCT sl.transaction_id) AS times_sold,
+    SUM(sl.quantity_sold) AS total_quantity,
+    AVG(sl.selling_price) AS avg_selling_price,
     SUM(sl.quantity_sold * sl.selling_price) AS total_revenue
-FROM PRODUCT p
-INNER JOIN "SALES LINE" sl ON p.PRODUCT_ID = sl.PRODUCT_ID
-INNER JOIN TRANSACTION t ON sl.TRANSACTION_ID = t.TRANSACTION_ID
-GROUP BY p.PRODUCT_ID, p.product_name
+FROM product p
+JOIN sales_line sl ON p.product_id = sl.product_id
+GROUP BY p.product_name, p.category
+HAVING SUM(sl.quantity_sold * sl.selling_price) > 100  -- Products over $100 revenue
+   AND COUNT(DISTINCT sl.transaction_id) >= 2          -- Sold at least twice
 ORDER BY total_revenue DESC;
 
+-- Query 18: Supplier performance evaluation
+-- Purpose: Evaluate supplier reliability and product range
 SELECT 
-    s.supplier_name,
-    po.ORDER_ID,
-    po.order_date,
-    po.status,
-    p.product_name,
-    pol.quantity_ordered,
-    po.unit_cost
-FROM SUPPLIER s
-INNER JOIN "PURCHASE ORDER" po ON s.SUPPLIER_ID = po.SUPPLIER_ID
-INNER JOIN "PURCHASE ORDER LINE" pol ON po.ORDER_ID = pol.ORDER_ID
-INNER JOIN PRODUCT p ON pol.PRODUCT_ID = p.PRODUCT_ID;
+    sup.supplier_name AS supplier_name,
+    COUNT(DISTINCT p.product_id) AS products_supplied,
+    SUM(sb.quantity) AS total_inventory,
+    AVG(sb.unit_cost) AS avg_cost,
+    SUM(sb.quantity * sb.unit_cost) AS inventory_value,
+    MAX(p.reorder_qty) AS max_reorder_qty
+FROM supplier sup
+JOIN product p ON sup.supplier_id = p.supplier_id
+JOIN stock_batch sb ON p.product_id = sb.product_id
+GROUP BY sup.supplier_name
+HAVING COUNT(DISTINCT p.product_id) >= 2  -- Suppliers with at least 2 products
+   AND SUM(sb.quantity) > 50               -- Total inventory > 50 units
+ORDER BY inventory_value DESC;
 
-SELECT 
-    cl.LOG_ID,
-    cl.log_date,
-    p.product_name,
-    u.first_name AS pharmacist_name,
-    pa_u.first_name AS patient_name,
-    cl.quantity,
-    cl.action_type,
-    cl.status
-FROM "CONTROLLED LOG" cl
-INNER JOIN PRODUCT p ON cl.PRODUCT_ID = p.PRODUCT_ID
-INNER JOIN PHARMACIST ph ON cl.PHARMACIST_ID = ph.PHARMACIST_ID
-INNER JOIN USER u ON ph.USER_ID = u.USER_ID
-INNER JOIN PATIENT pa ON cl.PATIENT_ID = pa.PATIENT_ID
-INNER JOIN USER pa_u ON pa.USER_ID = pa_u.USER_ID;
+-- JOINS EXECUTED CORRECTLY
 
+-- Query 19: Complete patient journey with multiple joins (7 tables)
+-- Purpose: Track patient from registration through prescriptions to sales
 SELECT 
-    t.TRANSACTION_ID,
-    t.transaction_date,
-    t.type,
-    pu.first_name AS patient_name,
-    phu.first_name AS pharmacist_name,
-    p.product_name,
+    -- Patient information
+    CONCAT(u.first_name, ' ', u.last_name) AS patient_name,
+    u.email,
+    u.phone,
+    -- Prescription information
+    p.prescription_id,
+    p.date_issued,
+    p.doctor_name,
+    -- Pharmacist information
+    CONCAT(u_ph.first_name, ' ', u_ph.last_name) AS pharmacist_name,
+    ph.license_number,
+    -- Medication information
+    pr.product_name,
+    pr.dosage,
+    pl.quantity AS prescribed_quantity,
+    pl.dosage_description,
+    -- Sales information
+    st.transaction_id,
+    st.transaction_date,
     sl.quantity_sold,
     sl.selling_price
-FROM TRANSACTION t
-INNER JOIN PATIENT pa ON t.PATIENT_ID = pa.PATIENT_ID
-INNER JOIN USER pu ON pa.USER_ID = pu.USER_ID
-INNER JOIN PHARMACIST ph ON t.PHARMACIST_ID = ph.PHARMACIST_ID
-INNER JOIN USER phu ON ph.USER_ID = phu.USER_ID
-INNER JOIN "SALES LINE" sl ON t.TRANSACTION_ID = sl.TRANSACTION_ID
-INNER JOIN PRODUCT p ON sl.PRODUCT_ID = p.PRODUCT_ID;
+FROM users u
+JOIN patient pa ON u.users_id = pa.users_id
+LEFT JOIN prescription p ON pa.patient_id = p.patient_id
+LEFT JOIN pharmacist ph ON p.pharmacist_id = ph.pharmacist_id
+LEFT JOIN users u_ph ON ph.users_id = u_ph.users_id
+LEFT JOIN prescription_line pl ON p.prescription_id = pl.prescription_id
+LEFT JOIN product pr ON pl.product_id = pr.product_id
+LEFT JOIN sale_transaction st ON pa.patient_id = st.patient_id
+LEFT JOIN sales_line sl ON st.transaction_id = sl.transaction_id AND pr.product_id = sl.product_id
+WHERE u.first_name = 'John'  -- Specific patient example
+ORDER BY p.date_issued DESC NULLS LAST, st.transaction_date DESC NULLS LAST;
 
+-- Query 20: Complete supply chain analysis (6 tables)
+-- Purpose: Track products from supplier through inventory to customer
 SELECT 
-    p.PRODUCT_ID,
+    sup.supplier_name AS supplier_name,
+    sup.payment_term,
     p.product_name,
-    p.reorder_quantity AS reorder_level,
-    COALESCE(SUM(sb.quantity), 0) AS total_stock_on_hand,
+    p.category,
+    sb.batch_number,
+    sb.quantity AS stock_quantity,
+    sb.expiry_date,
+    sc_ctrl.first_name || ' ' || sc_ctrl.last_name AS stock_controller,
+    COUNT(DISTINCT po.order_id) AS total_orders_placed,
+    COUNT(DISTINCT sl.transaction_id) AS times_sold,
+    SUM(sl.quantity_sold) AS total_sold
+FROM supplier sup
+JOIN product p ON sup.supplier_id = p.supplier_id
+JOIN stock_batch sb ON p.product_id = sb.product_id
+JOIN stock_controller sc ON sb.controller_id = sc.controller_id
+JOIN users sc_ctrl ON sc.users_id = sc_ctrl.users_id
+LEFT JOIN purchase_order_line pol ON p.product_id = pol.product_id
+LEFT JOIN purchase_order po ON pol.order_id = po.order_id
+LEFT JOIN sales_line sl ON p.product_id = sl.product_id AND sb.batch_id = sl.batch_id
+LEFT JOIN sale_transaction st ON sl.transaction_id = st.transaction_id AND st.type = 'SALE'
+GROUP BY sup.supplier_name, sup.payment_term, p.product_name, p.category, 
+         sb.batch_number, sb.quantity, sb.expiry_date, sc_ctrl.first_name, sc_ctrl.last_name
+HAVING sb.quantity > 0
+ORDER BY sup.supplier_name, p.product_name;
+
+-- SUB-QUERIES USED EFFECTIVELY 
+
+-- Query 21: Find top-performing products using subquery
+-- Purpose: Identify products that exceed average sales
+SELECT 
+    product_name,
+    category,
+    price,
+    (SELECT AVG(price) FROM product) AS avg_product_price,
+    price - (SELECT AVG(price) FROM product) AS price_difference,
+    (SELECT COUNT(*) FROM sales_line sl2 WHERE sl2.product_id = p.product_id) AS times_sold
+FROM product p
+WHERE price > (SELECT AVG(price) FROM product)
+  AND (SELECT SUM(quantity_sold) FROM sales_line sl3 WHERE sl3.product_id = p.product_id) > 
+      (SELECT AVG(quantity_sold) FROM sales_line)
+ORDER BY price DESC;
+
+-- Query 22: Find patients with above-average spending
+-- Purpose: Identify high-value customers for loyalty programs
+SELECT 
+    CONCAT(u.first_name, ' ', u.last_name) AS patient_name,
+    u.email,
+    u.phone,
+    (SELECT SUM(st2.total_amount) 
+     FROM sale_transaction st2 
+     WHERE st2.patient_id = pa.patient_id AND st2.type = 'SALE') AS total_spent,
+    (SELECT COUNT(*) 
+     FROM sale_transaction st3 
+     WHERE st3.patient_id = pa.patient_id AND st3.type = 'SALE') AS visit_count,
+    (SELECT ROUND(AVG(total_amount), 2) 
+     FROM sale_transaction st4 
+     WHERE st4.type = 'SALE') AS avg_customer_spending
+FROM patient pa
+JOIN users u ON pa.users_id = u.users_id
+WHERE (SELECT SUM(st2.total_amount) 
+       FROM sale_transaction st2 
+       WHERE st2.patient_id = pa.patient_id AND st2.type = 'SALE') > 
+      (SELECT AVG(total_amount) 
+       FROM sale_transaction 
+       WHERE type = 'SALE')
+ORDER BY total_spent DESC;
+
+-- Query 23: Products with expiring batches (correlated subquery)
+-- Purpose: Alert management about products with soon-to-expire batches
+SELECT 
+    p.product_name,
+    p.category,
+    (SELECT COUNT(*) 
+     FROM stock_batch sb2 
+     WHERE sb2.product_id = p.product_id 
+       AND sb2.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days') AS batches_expiring_soon,
+    (SELECT STRING_AGG(DISTINCT sb3.batch_number, ', ')
+     FROM stock_batch sb3 
+     WHERE sb3.product_id = p.product_id 
+       AND sb3.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days') AS expiring_batches,
+    (SELECT MIN(sb4.expiry_date) 
+     FROM stock_batch sb4 
+     WHERE sb4.product_id = p.product_id) AS earliest_expiry
+FROM product p
+WHERE EXISTS (
+    SELECT 1 
+    FROM stock_batch sb 
+    WHERE sb.product_id = p.product_id 
+      AND sb.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days'
+)
+ORDER BY earliest_expiry ASC;
+
+-- Query 24: Complex subquery with multiple conditions
+-- Purpose: Comprehensive business intelligence report
+SELECT 
+    category,
+    product_count,
+    avg_price,
+    total_sales,
     CASE 
-        WHEN COALESCE(SUM(sb.quantity), 0) <= p.reorder_quantity THEN 'ORDER NOW'
-        WHEN COALESCE(SUM(sb.quantity), 0) <= p.reorder_quantity * 1.5 THEN 'ORDER SOON'
-        WHEN COALESCE(SUM(sb.quantity), 0) = 0 THEN 'OUT OF STOCK'
-        ELSE 'OK'
-    END AS stock_status
-FROM PRODUCT p
-LEFT JOIN "STOCK BATCH" sb ON p.PRODUCT_ID = sb.PRODUCT_ID
-GROUP BY p.PRODUCT_ID, p.product_name, p.reorder_quantity
-HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_quantity * 1.5
-ORDER BY total_stock_on_hand ASC;
+        WHEN total_sales > (SELECT AVG(total_sales) FROM (
+            SELECT SUM(sl2.quantity_sold * sl2.selling_price) AS total_sales
+            FROM product p2
+            JOIN sales_line sl2 ON p2.product_id = sl2.product_id
+            GROUP BY p2.category
+        ) AS category_sales)
+        THEN 'ABOVE AVERAGE'
+        ELSE 'BELOW AVERAGE'
+    END AS category_performance
+FROM (
+    SELECT 
+        p.category,
+        COUNT(DISTINCT p.product_id) AS product_count,
+        ROUND(AVG(p.price), 2) AS avg_price,
+        COALESCE(SUM(sl.quantity_sold * sl.selling_price), 0) AS total_sales
+    FROM product p
+    LEFT JOIN sales_line sl ON p.product_id = sl.product_id
+    LEFT JOIN sale_transaction st ON sl.transaction_id = st.transaction_id AND st.type = 'SALE'
+    GROUP BY p.category
+) AS category_summary
+ORDER BY total_sales DESC;
 
+--EXTRA FUNCTIONALITY DEMONSTRATION 
 
-SELECT '1a. Rounded Prices' AS query_label;
-SELECT product_name, price, 
-       ROUND(price, 2) AS rounded_price,
-       TRUNC(price, 2) AS truncated_price
-FROM product
-LIMIT 5;
+-- Extra Query 1: Stored Procedure for automatic reorder generation
+CREATE OR REPLACE FUNCTION generate_reorder_report()
+RETURNS TABLE (
+    product_id BIGINT,  
+    product_name VARCHAR,
+    current_stock BIGINT,
+    reorder_qty INTEGER,
+    suggested_order_qty BIGINT,
+    supplier_name VARCHAR,
+    urgency_level TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.product_id,  
+        p.product_name,
+        COALESCE(SUM(sb.quantity), 0) AS current_stock,
+        p.reorder_qty,
+        GREATEST(p.reorder_qty - COALESCE(SUM(sb.quantity), 0), 0) AS suggested_order_qty,
+        s.supplier_name,
+        CASE
+            WHEN COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty * 0.5 THEN 'URGENT'
+            WHEN COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty THEN 'REORDER NEEDED'
+            ELSE 'OK'
+        END AS urgency_level
+    FROM product p
+    LEFT JOIN stock_batch sb ON p.product_id = sb.product_id AND sb.expiry_date > CURRENT_DATE
+    JOIN supplier s ON p.supplier_id = s.supplier_id
+    GROUP BY p.product_id, p.product_name, p.reorder_qty, s.supplier_name
+    HAVING COALESCE(SUM(sb.quantity), 0) <= p.reorder_qty * 1.2
+    ORDER BY urgency_level DESC, suggested_order_qty DESC;
+END;
+$$ LANGUAGE plpgsql;
 
+-- Execute the function
+SELECT * FROM generate_reorder_report();
 
-SELECT '1b. Rounded Transaction Totals' AS query_label;
-SELECT transaction_id, total_amount, 
-       ROUND(total_amount, 2) AS rounded_total,
-       TRUNC(total_amount, 2) AS truncated_total
-FROM sale_transaction
-LIMIT 5;
+-- Extra Query 2: Trigger to automatically update transaction total
+CREATE OR REPLACE FUNCTION update_transaction_total()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE sale_transaction
+    SET total_amount = (
+        SELECT COALESCE(SUM(quantity_sold * selling_price), 0)
+        FROM sales_line
+        WHERE transaction_id = NEW.transaction_id
+    )
+    WHERE transaction_id = NEW.transaction_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
-
-SELECT '1c. Rounded Average Unit Cost' AS query_label;
-SELECT product_id, 
-       ROUND(AVG(unit_cost), 2) AS rounded_avg_cost
-FROM stock_batch
-GROUP BY product_id
-LIMIT 5;
-
-
-SELECT '1d. CEIL and FLOOR on Quantities' AS query_label;
-SELECT batch_number, quantity, 
-       CEIL(quantity * 0.1) AS ten_percent_ceiling,
-       FLOOR(quantity * 0.1) AS ten_percent_floor
-FROM stock_batch
-LIMIT 5;
-
-
-SELECT '2a. Days Until Expiry' AS query_label;
-SELECT p.product_name, sb.batch_number, sb.expiry_date,
-       (sb.expiry_date - CURRENT_DATE) AS days_until_expiry
-FROM stock_batch sb
-JOIN product p ON sb.product_id = p.product_id
-WHERE sb.expiry_date > CURRENT_DATE
-ORDER BY days_until_expiry
-LIMIT 5;
-
-
-SELECT '2b. Batch Age (Interval & Days)' AS query_label;
-SELECT batch_number, received_date,
-       AGE(CURRENT_DATE, received_date) AS age_interval,
-       EXTRACT(DAY FROM AGE(CURRENT_DATE, received_date)) AS days_on_shelf
-FROM stock_batch
-LIMIT 5;
-
-
-SELECT '2c. Monthly Sales Totals' AS query_label;
-SELECT DATE_TRUNC('month', transaction_date) AS sales_month,
-       SUM(total_amount) AS monthly_total,
-       ROUND(SUM(total_amount), 2) AS rounded_monthly_total
-FROM sale_transaction
-GROUP BY sales_month
-ORDER BY sales_month;
-
--- 2d. Extract date parts from transaction dates
-SELECT '2d. Extracted Date Parts' AS query_label;
-SELECT transaction_id, transaction_date,
-       EXTRACT(YEAR FROM transaction_date) AS year,
-       EXTRACT(MONTH FROM transaction_date) AS month,
-       EXTRACT(DAY FROM transaction_date) AS day,
-       EXTRACT(DOW FROM transaction_date) AS day_of_week
-FROM sale_transaction
-LIMIT 5;
-
-
-SELECT '2e. Expiring in Next 30 Days' AS query_label;
-SELECT p.product_name, sb.batch_number, sb.expiry_date,
-       (sb.expiry_date - CURRENT_DATE) AS days_left
-FROM stock_batch sb
-JOIN product p ON sb.product_id = p.product_id
-WHERE sb.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
-ORDER BY sb.expiry_date;
-
-
-SELECT '2f. Batches Older than 1 Year' AS query_label;
-SELECT batch_number, received_date,
-       AGE(CURRENT_DATE, received_date) AS age
-FROM stock_batch
-WHERE received_date < CURRENT_DATE - INTERVAL '1 year';
-
-
-SELECT '2g. Patient Ages' AS query_label;
-SELECT first_name, last_name, date_of_birth,
-       AGE(CURRENT_DATE, date_of_birth) AS age_interval,
-       EXTRACT(YEAR FROM AGE(CURRENT_DATE, date_of_birth)) AS age_years
-FROM users
-WHERE roles = 'PATIENT';
-
-
-SELECT '3. Rounded Daily Sales (Last Month)' AS query_label;
-SELECT DATE_TRUNC('day', transaction_date) AS sale_day,
-       ROUND(SUM(total_amount), 2) AS daily_sales_rounded
-FROM sale_transaction
-WHERE transaction_date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
-  AND transaction_date < DATE_TRUNC('month', CURRENT_DATE)
-GROUP BY sale_day
-ORDER BY sale_day;
