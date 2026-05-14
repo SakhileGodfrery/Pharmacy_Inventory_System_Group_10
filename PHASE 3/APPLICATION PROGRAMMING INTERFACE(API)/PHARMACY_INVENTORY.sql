@@ -143,7 +143,7 @@ CREATE TABLE prescription_line (
 CREATE TABLE sale_transaction (
     transaction_id  BIGSERIAL PRIMARY KEY,
     transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    total_amount    DECIMAL(10,2) NOT NULL
+    total_amount    DECIMAL(10,2) NOT NULL,
     type            VARCHAR(20) NOT NULL, 
     patient_id      INT,
     pharmacist_id   INT NOT NULL,
