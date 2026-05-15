@@ -1,0 +1,26 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+<h2>Sales by Category</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Transactions</th>
+            <th>Units Sold</th>
+            <th>Revenue ($)</th>
+            <th>Avg Selling Price</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in results %}
+        <tr>
+            <td>{{ row.category }}</td>
+            <td>{{ row.number_of_transactions }}</td>
+            <td>{{ row.total_units_sold }}</td>
+            <td>{{ row.total_revenue }}</td>
+            <td>{{ row.average_selling_price }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
