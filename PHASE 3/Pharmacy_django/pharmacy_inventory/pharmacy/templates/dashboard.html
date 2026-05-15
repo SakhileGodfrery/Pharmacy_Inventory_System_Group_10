@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h2>Welcome, {{ user.first_name|default:user.username }}!</h2>
+        <p>Pharmacy Inventory Management System Dashboard</p>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-info">
+                <h3>View Data</h3>
+                <p>Browse and search through all database tables</p>
+                <a href="{% url 'view_data' %}" class="btn btn-sm">Go →</a>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">🔍</div>
+            <div class="stat-info">
+                <h3>Run Queries</h3>
+                <p>Execute pre-defined or custom SQL queries</p>
+                <a href="{% url 'run_queries' %}" class="btn btn-sm">Go →</a>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">➕</div>
+            <div class="stat-info">
+                <h3>Add Record</h3>
+                <p>Insert new records into any table</p>
+                <a href="{% url 'add_record' %}" class="btn btn-sm">Go →</a>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">✏️</div>
+            <div class="stat-info">
+                <h3>Update Record</h3>
+                <p>Modify existing records in the database</p>
+                <a href="{% url 'update_record' %}" class="btn btn-sm">Go →</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="quick-actions">
+        <h3>Quick Links</h3>
+        <div class="action-buttons">
+            <a href="{% url 'view_data' %}?table=users" class="quick-link">View Users</a>
+            <a href="{% url 'view_data' %}?table=product" class="quick-link">View Products</a>
+            <a href="{% url 'view_data' %}?table=sale_transaction" class="quick-link">View Transactions</a>
+            <a href="{% url 'run_queries' %}" class="quick-link">Check Low Stock</a>
+            <a href="{% url 'run_queries' %}" class="quick-link">View Expiring Products</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
