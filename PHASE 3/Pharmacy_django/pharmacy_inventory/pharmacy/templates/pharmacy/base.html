@@ -10,16 +10,17 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            background-color: #f4f6f9;
+            background-color: #f0f4f8;
             font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
         }
+        /* Sidebar – deep teal-blue */
         .sidebar {
-            background-color: #1e2a3e;
+            background-color: #0b2b3d;
             min-height: 100vh;
-            color: #cfdde6;
+            color: #e0f2fe;
         }
         .sidebar a {
-            color: #cfdde6;
+            color: #e0f2fe;
             text-decoration: none;
             display: block;
             padding: 0.75rem 1rem;
@@ -27,23 +28,27 @@
             transition: 0.2s;
         }
         .sidebar a:hover, .sidebar a.active {
-            background-color: #2c3e50;
+            background-color: #0d9488;  /* teal accent */
             color: white;
         }
         .sidebar .nav-item {
             margin-bottom: 0.3rem;
         }
+        /* Main content area */
         .main-content {
             padding: 20px;
         }
+        /* KPI Cards */
         .card-stats {
             border: none;
-            border-radius: 16px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             transition: 0.2s;
+            border-top: 3px solid transparent;
         }
         .card-stats:hover {
-            transform: translateY(-3px);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.08);
         }
         .stat-icon {
             font-size: 2.2rem;
@@ -53,6 +58,7 @@
             font-size: 1.8rem;
             font-weight: 700;
         }
+        /* Footer */
         footer {
             background-color: white;
             border-top: 1px solid #dee2e6;
@@ -83,10 +89,28 @@
                 <div class="small text-secondary mt-4">
                     <i class="fas fa-database me-1"></i> Raw SQL
                 </div>
+
+                <!-- User info and logout – only shown if logged in -->
+                {% if request.session.user_id %}
+                <div class="mt-3 p-2 bg-dark rounded">
+                    <div class="text-white small">
+                        <i class="fas fa-user-circle me-1"></i> {{ request.session.user_name }}<br>
+                        <span class="text-secondary">{{ request.session.user_role }}</span>
+                    </div>
+                    <a href="{% url 'logout' %}" class="btn btn-sm btn-outline-light mt-2 w-100">
+                        <i class="fas fa-sign-out-alt me-1"></i> Logout
+                    </a>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Main content -->
             <div class="col-md-10 col-lg-10 main-content">
+                <!-- Top bar with date -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="text-muted mb-0"><i class="fas fa-chart-line me-2"></i>Inventory Dashboard</h5>
+                    <div class="text-muted small">Today: {% now "F j, Y" %}</div>
+                </div>
                 {% block content %}{% endblock %}
                 <footer class="text-center text-muted small">
                     &copy; 2026 Pharmacy Inventory System – Raw SQL / PostgreSQL
