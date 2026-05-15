@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Update Record{% endblock %}
+
+{% block content %}
+<div class="update-record">
+    <h2>✏️ Update Record</h2>
+    
+    <div class="record-form-container">
+        <form method="post" class="update-form">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_table_name">Select Table:</label>
+                {{ form.table_name }}
+            </div>
+            
+            <div class="form-group">
+                <label for="id_record_id">Record ID:</label>
+                {{ form.record_id }}
+                <small>The primary key value of the record to update</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_update_data">Update Data (JSON):</label>
+                {{ form.update_data }}
+                <small>Example: {"first_name": "John", "last_name": "Smith"}</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Update Record</button>
+        </form>
+    </div>
+    
+    {% if result %}
+    <div class="alert alert-success">{{ result }}</div>
+    {% endif %}
+    
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    
+    <div class="json-help">
+        <h4>JSON Format Help:</h4>
+        <pre>{
+    "column_name_1": "new_value_1",
+    "column_name_2": "new_value_2"
+}</pre>
+        <p>To find column names, go to <a href="{% url 'view_data' %}">View Data</a> and select the table.</p>
+    </div>
+</div>
+{% endblock %}

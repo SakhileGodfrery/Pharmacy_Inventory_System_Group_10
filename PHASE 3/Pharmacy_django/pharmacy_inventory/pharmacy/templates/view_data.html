@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}View Data{% endblock %}
+
+{% block content %}
+<div class="view-data">
+    <h2>📋 Database Tables</h2>
+    
+    <div class="table-selector">
+        <form method="get" class="inline-form">
+            <select name="table" onchange="this.form.submit()" class="form-control">
+                <option value="">Select a table to view...</option>
+                {% for table in tables %}
+                <option value="{{ table.0 }}" {% if selected_table == table.0 %}selected{% endif %}>
+                    {{ table.0 }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    
+    {% if selected_table %}
+    <div class="data-table-container">
+        <h3>Table: {{ table_name }}</h3>
+        
+        {% if table_data %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        {% for col in columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in table_data %}
+                    <tr>
+                        {% for value in row %}
+                        <td>{{ value|default:"—" }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="table-info">
+            <p>Showing {{ table_data|length }} records</p>
+        </div>
+        {% else %}
+        <div class="alert alert-info">No data found in this table.</div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

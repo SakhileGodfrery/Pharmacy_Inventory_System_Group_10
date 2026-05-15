@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Run Queries{% endblock %}
+
+{% block content %}
+<div class="run-queries">
+    <h2>🔍 Database Query Runner</h2>
+    
+    <div class="query-form-container">
+        <form method="post" class="query-form">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_selected_query">Select Query:</label>
+                {{ form.selected_query }}
+            </div>
+            
+            <div class="form-group custom-sql-group" id="custom-sql-group" style="display: none;">
+                <label for="id_custom_sql">Custom SQL Query:</label>
+                {{ form.custom_sql }}
+                <small>Write your own SQL SELECT query here</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Execute Query</button>
+        </form>
+    </div>
+    
+    {% if executed_query %}
+    <div class="executed-query">
+        <h4>Executed Query:</h4>
+        <pre><code>{{ executed_query }}</code></pre>
+    </div>
+    {% endif %}
+    
+    {% if error %}
+    <div class="alert alert-error">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+    
+    {% if results %}
+    <div class="results-container">
+        <h3>Query Results ({{ results|length }} rows)</h3>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        {% for col in columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in results %}
+                    <tr>
+                        {% for value in row %}
+                        <td>{{ value|default:"—"|truncatechars:50 }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    const querySelect = document.getElementById('id_selected_query');
+    const customSqlGroup = document.getElementById('custom-sql-group');
+    
+    function toggleCustomSql() {
+        if (querySelect.value === '20') {
+            customSqlGroup.style.display = 'block';
+        } else {
+            customSqlGroup.style.display = 'none';
+        }
+    }
+    
+    querySelect.addEventListener('change', toggleCustomSql);
+    toggleCustomSql();
+</script>
+{% endblock %}

@@ -75,8 +75,12 @@ WSGI_APPLICATION = 'pharmacy_inventory.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'pharmacy_inventory',
+        'USER': 'postgres',
+        'PASSWORD': 'Sakhile123',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -116,3 +120,17 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Session settings
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# Login URL
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'

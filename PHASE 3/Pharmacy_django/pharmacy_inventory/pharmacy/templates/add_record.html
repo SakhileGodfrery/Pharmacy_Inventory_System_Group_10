@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Record{% endblock %}
+
+{% block content %}
+<div class="add-record">
+    <h2>➕ Add New Record</h2>
+    
+    <div class="record-form-container">
+        <div class="table-selector">
+            <form method="get" class="inline-form">
+                <select name="table" onchange="this.form.submit()" class="form-control">
+                    <option value="">Select a table to add record...</option>
+                    {% for table in tables %}
+                    <option value="{{ table.0 }}" {% if selected_table == table.0 %}selected{% endif %}>
+                        {{ table.0 }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        
+        {% if selected_table %}
+        <div class="form-wrapper">
+            <h3>Add to: {{ selected_table }}</h3>
+            
+            <form method="post" id="add-record-form">
+                {% csrf_token %}
+                <input type="hidden" name="table_name" value="{{ selected_table }}">
+                <input type="hidden" name="record_data" id="record-data-input">
+                
+                <div id="dynamic-fields" class="dynamic-fields">
+                    {% for col in columns_info %}
+                    {% if not forloop.first or not col.0.endswith '_id' %}
+                    <div class="form-group">
+                        <label for="field_{{ col.0 }}">{{ col.0 }}</label>
+                        <input type="text" 
+                               id="field_{{ col.0 }}" 
+                               name="{{ col.0 }}" 
+                               class="form-control"
+                               {% if col.2 == 'NO' %}required{% endif %}
+                               placeholder="Enter {{ col.0 }}">
+                        <small>{{ col.1 }}</small>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Add Record</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.getElementById('add-record-form').addEventListener('submit', function(e) {
+        const formData = {};
+        const inputs = document.querySelectorAll('#dynamic-fields input');
+        inputs.forEach(input => {
+            if (input.value.trim() !== '') {
+                let value = input.value.trim();
+                // Try to convert to number if it looks like a number
+                if (!isNaN(value) && value !== '') {
+                    value = Number(value);
+                }
+                formData[input.name] = value;
+            }
+        });
+        document.getElementById('record-data-input').value = JSON.stringify(formData);
+    });
+</script>
+{% endblock %}
