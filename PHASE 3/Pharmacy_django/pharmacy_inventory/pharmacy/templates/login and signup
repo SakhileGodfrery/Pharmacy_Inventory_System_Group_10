@@ -1,0 +1,172 @@
+import streamlit as st
+import pandas as pd
+import psycopg2
+from psycopg2 import Error
+import datetime
+import time
+
+# --- 1. DATABASE CONNECTION ---
+def get_connection():
+    try:
+        return psycopg2.connect(
+            user="postgres",
+            password="Enter_Password", # <--- CHANGE TO YOUR POSTGRESQL PASSWORD
+            host="127.0.0.1",
+            port="5432",
+            database="pharmacy_inventory"
+        )
+    except (Exception, Error) as error:
+        return None
+
+# --- 2. STYLING (CSS) ---
+st.set_page_config(page_title="NWU Health Hub | Login", layout="centered", page_icon="🧡")
+
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+
+    /* Background: Warm Peach Gradient */
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #FFF5F0 0%, #FFE0D1 100%);
+        font-family: 'Quicksand', sans-serif;
+    }
+
+    /* The Login Card */
+    .auth-card {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        padding: 40px;
+        border-radius: 30px;
+        box-shadow: 0 15px 35px rgba(255, 60, 56, 0.2);
+        border-top: 10px solid #FF3C38; /* Coral Accent */
+        text-align: center;
+    }
+
+    /* Headers */
+    h1 { color: #FF3C38 !important; font-weight: 800; margin-bottom: 0px; }
+    p { color: #666 !important; font-weight: 500; }
+
+    /* Role Choice Styling */
+    .stRadio [data-testid="stWidgetLabel"] p {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #002D5E !important;
+    }
+
+    /* Button: Warm Coral */
+    .stButton>button {
+        background-color: #FF3C38;
+        color: white;
+        border-radius: 15px;
+        height: 3.5em;
+        width: 100%;
+        font-weight: 700;
+        border: none;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #002D5E; /* NWU Blue on hover */
+        transform: scale(1.02);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 3. SESSION MANAGEMENT ---
+if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+
+# --- 4. THE INTERFACE ---
+if not st.session_state['logged_in']:
+    st.image("https://www.nwu.ac.za/sites/www.nwu.ac.za/files/files/i-institutional-advancement/logo/NWU%20Logo%20Standard.jpg", width=250)
+    
+    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
+    st.title("NWU Health Hub")
+    st.write("Welcome to Group 10's Pharmacy Inventory System")
+    
+    # Toggle between Login and Signup
+    choice = st.radio("", ["🔒 Existing Member Login", "✨ New Member Registration"], horizontal=True)
+    st.divider()
+
+    if choice == "🔒 Existing Member Login":
+        with st.container():
+            u_id = st.text_input("ID Number or Email Address", placeholder="e.g. 950101...")
+            u_pw = st.text_input("Password", type="password", placeholder="••••••••")
+            
+            if st.button("Access My Dashboard"):
+                conn = get_connection()
+                if conn:
+                    cur = conn.cursor()
+                    # Unified Login: Checks if ID (Patient) or Email (Staff) matches password
+                    cur.execute("""
+                        SELECT u.first_name, u.roles, p.patient_id 
+                        FROM users u LEFT JOIN patient p ON u.users_id = p.users_id 
+                        WHERE (p.id_number = %s OR u.email = %s) AND u.password_hash = %s
+                    """, (u_id, u_id, u_pw))
+                    user = cur.fetchone()
+                    if user:
+                        st.session_state['logged_in'] = True
+                        st.session_state['user_name'] = user[0]
+                        st.session_state['user_role'] = user[1]
+                        st.success(f"Success! Welcome back, {user[0]}. Redirecting...")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Authentication Failed: Invalid ID or Password.")
+                    conn.close()
+
+    else: # NEW REGISTRATION
+        with st.container():
+            st.markdown("### Step 1: Who are you?")
+            reg_role = st.selectbox("Choose your role in the system:", 
+                                   ["PATIENT", "PHARMACIST", "STOCK_CONTROLLER"])
+            
+            st.markdown("### Step 2: Details")
+            c1, c2 = st.columns(2)
+            with c1:
+                fname = st.text_input("First Name", key="r_fn")
+                email = st.text_input("Email", key="r_em")
+            with c2:
+                lname = st.text_input("Surname", key="r_ln")
+                password = st.text_input("Password", type="password", key="r_pw")
+            
+            # Context-sensitive field
+            if reg_role == "PATIENT":
+                id_val = st.text_input("Identification (ID) Number", key="r_id")
+            else:
+                id_val = st.text_input("Professional License / Staff Number", key="r_lic")
+
+            if st.button("Complete Registration"):
+                conn = get_connection()
+                if conn:
+                    try:
+                        cur = conn.cursor()
+                        # 1. Insert into Users Table
+                        cur.execute("INSERT INTO users (first_name, last_name, email, roles, password_hash, date_of_birth) VALUES (%s,%s,%s,%s,%s, CURRENT_DATE) RETURNING users_id", (fname, lname, email, reg_role, password))
+                        u_id = cur.fetchone()[0]
+                        
+                        # 2. Insert into Role Table
+                        if reg_role == "PATIENT":
+                            cur.execute("INSERT INTO patient (users_id, id_number) VALUES (%s, %s)", (u_id, id_val))
+                        elif reg_role == "PHARMACIST":
+                            cur.execute("INSERT INTO pharmacist (users_id, license_number) VALUES (%s, %s)", (u_id, id_val))
+                        elif reg_role == "STOCK_CONTROLLER":
+                            cur.execute("INSERT INTO stock_controller (users_id) VALUES (%s)", (u_id,))
+                        
+                        conn.commit()
+                        st.balloons()
+                        st.success("🎉 Welcome! You have been registered. Please switch to 'Login' to enter.")
+                        conn.close()
+                    except:
+                        st.error("⚠️ Registration Failed: This ID or Email already exists.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+else:
+    # This part shows after login
+    st.sidebar.title(f"👋 Hello, {st.session_state['user_name']}")
+    st.sidebar.info(f"Signed in as: {st.session_state['user_role']}")
+    
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state['logged_in'] = False
+        st.rerun()
+    
+    st.title(f"Welcome to your {st.session_state['user_role']} Dashboard")
+    st.write("You are now securely logged into the NWU Pharmacy System.")
