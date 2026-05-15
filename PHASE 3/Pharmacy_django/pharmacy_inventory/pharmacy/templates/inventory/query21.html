@@ -1,0 +1,24 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+<h2>Top Products (Price & Sales above average)</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Product</th><th>Category</th><th>Price</th><th>Avg Price (all products)</th>
+            <th>Price Difference</th><th>Times Sold</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in results %}
+        <tr>
+            <td>{{ row.product_name }}</td>
+            <td>{{ row.category }}</td>
+            <td>{{ row.price }}</td>
+            <td>{{ row.avg_product_price }}</td>
+            <td>{{ row.price_difference }}</td>
+            <td>{{ row.times_sold }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

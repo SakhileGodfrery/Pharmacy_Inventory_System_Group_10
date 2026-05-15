@@ -1,0 +1,146 @@
+{% extends 'pharmacy/base.html' %}
+{% block content %}
+{% load static %}
+
+<!-- Top KPI Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card card-stats bg-white">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted text-uppercase small">Total Stock Products</span>
+                    <div class="stat-value">{{ total_products|default:"0" }}</div>
+                    <span class="text-success small"><i class="fas fa-arrow-up"></i> +1.85%</span>
+                </div>
+                <div class="stat-icon text-primary"><i class="fas fa-capsules"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats bg-white">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted text-uppercase small">Pending Orders</span>
+                    <div class="stat-value">{{ pending_orders|default:"0" }}</div>
+                </div>
+                <div class="stat-icon text-warning"><i class="fas fa-clock"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats bg-white">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted text-uppercase small">In Courier</span>
+                    <div class="stat-value">{{ in_courier|default:"0" }}</div>
+                </div>
+                <div class="stat-icon text-info"><i class="fas fa-truck"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats bg-white">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted text-uppercase small">Low Stock Alerts</span>
+                    <div class="stat-value">{{ low_stock_count|default:"0" }}</div>
+                </div>
+                <div class="stat-icon text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Status & Charts Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-bold">Order Status Percentage</div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4 mb-3"><span class="text-muted">Order Pending</span><br><strong>{{ pending_orders|default:"0" }}</strong></div>
+                    <div class="col-4 mb-3"><span class="text-muted">Complete Orders</span><br><strong>{{ complete_orders|default:"0" }}</strong></div>
+                    <div class="col-4 mb-3"><span class="text-muted">Delivered</span><br><strong>{{ delivered_orders|default:"0" }}</strong></div>
+                    <div class="col-4"><span class="text-muted">In Courier</span><br><strong>{{ in_courier|default:"0" }}</strong></div>
+                    <div class="col-4"><span class="text-muted">Cancelled</span><br><strong>{{ cancelled_orders|default:"0" }}</strong></div>
+                    <div class="col-4"><span class="text-muted">Returned</span><br><strong>{{ returned_orders|default:"0" }}</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-bold">Order Trend (Last 30 Days)</div>
+            <div class="card-body">
+                <canvas id="orderTrendChart" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders Table (matching image style) -->
+<div class="card">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-history me-2"></i> Recent Orders</span>
+        <a href="#" class="text-primary small">View All</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Customer</th>
+                        <th>Order ID</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>
+                            <img src="https://ui-avatars.com/api/?background=random&name={{ order.customer|urlencode }}" class="rounded-circle me-2" width="32" height="32">
+                            {{ order.customer }}
+                        </td>
+                        <td>#{{ order.order_id }}</td>
+                        <td>{{ order.order_date|date:"Y-m-d" }}</td>
+                        <td><span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Pending' %}bg-warning{% else %}bg-secondary{% endif %}">{{ order.status }}</span></td>
+                        <td>${{ order.total }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center">No recent orders found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Example static chart – replace with real data from your SQL if needed
+    const ctx = document.getElementById('orderTrendChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+            datasets: [{
+                label: 'Orders',
+                data: [42, 58, 70, 88],
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13,110,253,0.05)',
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+</script>
+{% endblock %}
