@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pharmacy Inventory System - {% block title %}Home{% endblock %}</title>
+    <title>PharmaStock - {% block title %}Home{% endblock %}</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -13,7 +13,8 @@
         {% if user.is_authenticated %}
         <nav class="navbar">
             <div class="nav-brand">
-                <h1>💊 Pharmacy Inventory System</h1>
+                <span class="pharma-icon">💊</span>
+                <h1>PharmaStock</h1>
             </div>
             <div class="nav-menu">
                 <a href="{% url 'dashboard' %}" class="nav-link">Dashboard</a>
@@ -42,7 +43,7 @@
         </main>
         
         <footer class="footer">
-            <p>&copy; 2024 Pharmacy Inventory System</p>
+            <p>&copy; 2025 PharmaStock — Advanced Pharmacy Management System</p>
         </footer>
     </div>
 </body>
