@@ -4,10 +4,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from .forms import RegistrationForm, LoginForm, AddRecordForm, QueryForm, UpdateRecordForm
-from .db import execute_query, get_table_names, get_table_data, get_table_columns
+from django.core.paginator import Paginator
+from .forms import RegistrationForm, LoginForm, QueryForm, UpdateRecordForm
+from .db import (execute_query, get_table_names, get_table_data, 
+                 get_table_columns, get_primary_key, get_foreign_keys,
+                 validate_table_name,get_db_connection)
 import json
 import logging
+import re
 
 # Create your views here.
 
@@ -347,30 +351,64 @@ def dashboard(request):
     }
     return render(request, 'dashboard.html', context)
 
+def is_safe_query(sql):
+    """Check if SQL query is safe (only SELECT statements)"""
+    sql_upper = sql.strip().upper()
+    if not sql_upper.startswith('SELECT'):
+        return False, "Only SELECT queries are allowed"
+    
+    # Block dangerous keywords
+    dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 
+                         'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE']
+    for keyword in dangerous_keywords:
+        if keyword in sql_upper:
+            return False, f"Dangerous keyword '{keyword}' not allowed"
+    
+    return True, "OK"
+
 @login_required
 def view_data(request):
-    """View database tables"""
+    """View database tables with pagination"""
     tables = get_table_names()
     selected_table = request.GET.get('table', '')
+    page = request.GET.get('page', 1)
     table_data = []
     columns = []
-    table_name_display = ''
+    total_count = 0
     
     if selected_table and tables:
         try:
-            table_data = get_table_data(selected_table, limit=100)
+            # Get total count
+            validate_table_name(selected_table)
+            count_sql = f'SELECT COUNT(*) FROM "{selected_table}"'
+            total_count_result = execute_query(count_sql, fetch_one=True)
+            total_count = total_count_result[0] if total_count_result else 0
+            
+            # Get paginated data
+            per_page = 50
+            offset = (int(page) - 1) * per_page
+            table_data = get_table_data(selected_table, limit=per_page, offset=offset)
             columns_info = get_table_columns(selected_table)
             columns = [col[0] for col in columns_info]
-            table_name_display = selected_table
+            
+            # Create paginator
+            paginator = Paginator(range(total_count), per_page)
+            page_obj = paginator.get_page(page)
+            
         except Exception as e:
             messages.error(request, f'Error loading table: {e}')
+            page_obj = None
+    else:
+        page_obj = None
     
     context = {
         'tables': tables,
         'selected_table': selected_table,
         'table_data': table_data,
         'columns': columns,
-        'table_name': table_name_display,
+        'table_name': selected_table,
+        'page_obj': page_obj,
+        'total_count': total_count,
     }
     return render(request, 'view_data.html', context)
 
@@ -383,44 +421,45 @@ def run_queries(request):
     executed_query = None
     
     if request.method == 'POST':
-        form = QueryForm(request.POST)
-        if form.is_valid():
-            selected_query = form.cleaned_data['selected_query']
-            custom_sql = form.cleaned_data.get('custom_sql', '')
-            
-            if selected_query == '20' and custom_sql:
+        selected_query = request.POST.get('selected_query')
+        custom_sql = request.POST.get('custom_sql', '')
+        
+        if selected_query == '20' and custom_sql:
+            # Validate custom SQL for safety
+            is_safe, message = is_safe_query(custom_sql)
+            if not is_safe:
+                error = message
+            else:
                 sql = custom_sql
                 executed_query = sql
-            elif selected_query in PREDEFINED_QUERIES:
-                sql = PREDEFINED_QUERIES[selected_query]
-                executed_query = sql
-            else:
-                error = "Invalid query selection"
-            
-            if not error:
-                try:
-                    # Execute the query
-                    result_data = execute_query(sql, fetch_all=True)
-                    
-                    if result_data and len(result_data) > 0:
-                        # Get column names from cursor description is not available with raw fetch
-                        # We need to parse the result structure
-                        if result_data and isinstance(result_data[0], (tuple, list)):
-                            # Try to get column count from first row
-                            columns = [f'col_{i+1}' for i in range(len(result_data[0]))]
-                        results = result_data
-                    else:
-                        results = []
-                        columns = []
-                        messages.info(request, 'Query executed successfully but returned no results.')
-                except Exception as e:
-                    error = str(e)
-                    messages.error(request, f'Query error: {e}')
-    else:
-        form = QueryForm()
+        elif selected_query and selected_query in PREDEFINED_QUERIES:
+            sql = PREDEFINED_QUERIES[selected_query]
+            executed_query = sql
+        else:
+            error = "Invalid query selection"
+        
+        if not error and executed_query:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(executed_query)
+                
+                if cursor.description:
+                    columns = [desc[0] for desc in cursor.description]
+                    results = cursor.fetchall()
+                    messages.success(request, f'Query executed successfully. {len(results)} rows returned.')
+                else:
+                    messages.info(request, 'Query executed successfully but returned no results.')
+                
+                cursor.close()
+                conn.close()
+                
+            except Exception as e:
+                error = str(e)
+                messages.error(request, f'Query error: {e}')
     
     context = {
-        'form': form,
+        'predefined_queries': PREDEFINED_QUERIES,
         'results': results,
         'columns': columns,
         'error': error,
@@ -432,45 +471,65 @@ def run_queries(request):
 def add_record(request):
     """Add a new record to a table"""
     tables = get_table_names()
-    success = False
-    error = None
     
     if request.method == 'POST':
         table_name = request.POST.get('table_name')
-        # Get the form data as JSON
-        record_data_str = request.POST.get('record_data', '{}')
         
         try:
-            record_data = json.loads(record_data_str)
+            validate_table_name(table_name)
+            columns_info = get_table_columns(table_name)
+            fk_relations = get_foreign_keys(table_name)
             
-            if table_name and record_data:
-                # Build INSERT query
-                columns = list(record_data.keys())
-                placeholders = ['%s'] * len(columns)
-                values = [record_data[col] for col in columns]
-                
-                sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(placeholders)}) RETURNING *"
-                
-                result = execute_query(sql, values, fetch_one=True)
-                if result:
-                    success = True
-                    messages.success(request, f'Record added successfully to {table_name}!')
-                else:
-                    error = 'Failed to insert record'
+            # Build record data from POST
+            record_data = {}
+            for key, value in request.POST.items():
+                if key not in ['csrfmiddlewaretoken', 'table_name'] and value.strip():
+                    # Check if this is a foreign key
+                    is_fk = any(fk[0] == key for fk in fk_relations)
+                    
+                    # Convert value types
+                    if value.isdigit():
+                        record_data[key] = int(value)
+                    else:
+                        try:
+                            record_data[key] = float(value)
+                        except ValueError:
+                            record_data[key] = value
+            
+            if not record_data:
+                messages.error(request, 'Please provide at least one field value')
+                return redirect(f'{request.path}?table={table_name}')
+            
+            # Build INSERT query
+            columns = list(record_data.keys())
+            placeholders = ['%s'] * len(columns)
+            values = [record_data[col] for col in columns]
+            
+            sql = f'INSERT INTO "{table_name}" ({", ".join(columns)}) VALUES ({", ".join(placeholders)})'
+            
+            rows_affected = execute_query(sql, values)
+            if rows_affected > 0:
+                messages.success(request, f'Record added successfully to {table_name}!')
             else:
-                error = 'Please provide record data'
-        except json.JSONDecodeError:
-            error = 'Invalid JSON data format'
+                messages.error(request, 'Failed to insert record')
+                
         except Exception as e:
-            error = str(e)
             messages.error(request, f'Error adding record: {e}')
+        
+        return redirect(f'{request.path}?table={table_name}')
     
-    # Get column info for selected table
+    # GET request - show form
     selected_table = request.GET.get('table', '')
     columns_info = []
+    fk_relations = []
+    pk_column = None
+    
     if selected_table:
         try:
+            validate_table_name(selected_table)
             columns_info = get_table_columns(selected_table)
+            fk_relations = get_foreign_keys(selected_table)
+            pk_column = get_primary_key(selected_table)
         except Exception as e:
             messages.error(request, f'Error loading columns: {e}')
     
@@ -478,8 +537,8 @@ def add_record(request):
         'tables': tables,
         'selected_table': selected_table,
         'columns_info': columns_info,
-        'success': success,
-        'error': error,
+        'fk_relations': fk_relations,
+        'pk_column': pk_column,
     }
     return render(request, 'add_record.html', context)
 
@@ -491,49 +550,74 @@ def update_record(request):
     error = None
     
     if request.method == 'POST':
-        form = UpdateRecordForm(request.POST, tables=tables)
-        if form.is_valid():
-            table_name = form.cleaned_data['table_name']
-            record_id = form.cleaned_data['record_id']
-            update_data_str = form.cleaned_data['update_data']
+        table_name = request.POST.get('table_name')
+        record_id = request.POST.get('record_id')
+        
+        try:
+            validate_table_name(table_name)
+            pk_column = get_primary_key(table_name)
             
-            try:
-                update_data = json.loads(update_data_str)
-                
-                if table_name and record_id and update_data:
-                    # Build UPDATE query
-                    set_clauses = [f"{col} = %s" for col in update_data.keys()]
-                    values = list(update_data.values())
-                    values.append(record_id)
-                    
-                    # Determine primary key column (assume 'id' or table_name + '_id')
-                    pk_column = 'id'
-                    if 'users_id' in [col[0] for col in get_table_columns(table_name)]:
-                        pk_column = 'users_id'
-                    elif f'{table_name[:-1]}_id' in [col[0] for col in get_table_columns(table_name)]:
-                        pk_column = f'{table_name[:-1]}_id'
-                    
-                    sql = f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE {pk_column} = %s"
-                    
-                    rows_affected = execute_query(sql, values)
-                    if rows_affected > 0:
-                        result = f'Successfully updated {rows_affected} record(s) in {table_name}'
-                        messages.success(request, result)
+            if not pk_column:
+                raise ValueError(f"No primary key found for table {table_name}")
+            
+            # Build update data from POST
+            update_data = {}
+            for key, value in request.POST.items():
+                if key not in ['csrfmiddlewaretoken', 'table_name', 'record_id'] and value.strip():
+                    if value.isdigit():
+                        update_data[key] = int(value)
                     else:
-                        error = f'No record found with {pk_column} = {record_id}'
-                else:
-                    error = 'Please provide all required fields'
-            except json.JSONDecodeError:
-                error = 'Invalid JSON data format for update data'
-            except Exception as e:
-                error = str(e)
-                messages.error(request, f'Error updating record: {e}')
-    else:
-        form = UpdateRecordForm(tables=tables)
+                        try:
+                            update_data[key] = float(value)
+                        except ValueError:
+                            update_data[key] = value
+            
+            if not update_data:
+                raise ValueError("Please provide at least one field to update")
+            
+            # Build UPDATE query
+            set_clauses = [f'"{col}" = %s' for col in update_data.keys()]
+            values = list(update_data.values())
+            values.append(record_id)
+            
+            sql = f'UPDATE "{table_name}" SET {", ".join(set_clauses)} WHERE "{pk_column}" = %s'
+            
+            rows_affected = execute_query(sql, values)
+            if rows_affected > 0:
+                result = f'Successfully updated {rows_affected} record(s) in {table_name}'
+                messages.success(request, result)
+            else:
+                error = f'No record found with {pk_column} = {record_id}'
+                
+        except Exception as e:
+            error = str(e)
+            messages.error(request, f'Error updating record: {e}')
+    
+    # Get existing record data for display
+    record_data = None
+    selected_table = request.GET.get('table', '')
+    record_id = request.GET.get('id', '')
+    
+    if selected_table and record_id:
+        try:
+            validate_table_name(selected_table)
+            pk_column = get_primary_key(selected_table)
+            if pk_column:
+                sql = f'SELECT * FROM "{selected_table}" WHERE "{pk_column}" = %s'
+                record_data_raw = execute_query(sql, [record_id], fetch_one=True)
+                if record_data_raw:
+                    columns_info = get_table_columns(selected_table)
+                    record_data = {}
+                    for i, col in enumerate(columns_info):
+                        record_data[col[0]] = record_data_raw[i] if i < len(record_data_raw) else None
+        except Exception as e:
+            messages.error(request, f'Error loading record: {e}')
     
     context = {
         'tables': tables,
-        'form': form,
+        'selected_table': selected_table,
+        'record_id': record_id,
+        'record_data': record_data,
         'result': result,
         'error': error,
     }
@@ -593,4 +677,49 @@ def api_get_record(request):
                 return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
-
+@login_required
+@csrf_exempt
+def api_update_record(request):
+    """API endpoint to update a record"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            table_name = data.get('table_name')
+            record_id = data.get('record_id')
+            update_data = data.get('update_data', {})
+            
+            if not table_name or not record_id or not update_data:
+                return JsonResponse({'success': False, 'error': 'Missing required fields'})
+            
+            # Get primary key column
+            columns_info = get_table_columns(table_name)
+            pk_column = None
+            
+            # Try to find primary key column
+            for col in columns_info:
+                col_name = col[0]
+                if col_name == 'id' or col_name == f"{table_name[:-1]}_id" or col_name == f"{table_name}_id":
+                    pk_column = col_name
+                    break
+            
+            if not pk_column:
+                pk_column = columns_info[0][0]  # Use first column as fallback
+            
+            # Build UPDATE query
+            set_clauses = [f"{col} = %s" for col in update_data.keys()]
+            values = list(update_data.values())
+            values.append(record_id)
+            
+            sql = f'UPDATE "{table_name}" SET {", ".join(set_clauses)} WHERE {pk_column} = %s'
+            
+            rows_affected = execute_query(sql, values)
+            
+            if rows_affected > 0:
+                return JsonResponse({'success': True, 'message': f'Updated {rows_affected} record(s)'})
+            else:
+                return JsonResponse({'success': False, 'error': 'No record found or no changes made'})
+                
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})

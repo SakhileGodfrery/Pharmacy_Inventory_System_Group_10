@@ -1,8 +1,33 @@
 import psycopg2
 from django.conf import settings
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+# Valid table names cache
+VALID_TABLES_CACHE = None
+
+def get_valid_tables():
+    """Get and cache valid table names to prevent SQL injection"""
+    global VALID_TABLES_CACHE
+    if VALID_TABLES_CACHE is None:
+        sql = """
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_type = 'BASE TABLE'
+        """
+        results = execute_query(sql, fetch_all=True)
+        VALID_TABLES_CACHE = [row[0] for row in results] if results else []
+    return VALID_TABLES_CACHE
+
+def validate_table_name(table_name):
+    """Validate table name against existing tables"""
+    valid_tables = get_valid_tables()
+    if table_name not in valid_tables:
+        raise ValueError(f"Invalid table name: {table_name}")
+    return table_name
 
 def get_db_connection():
     """Get a database connection using Django settings"""
@@ -27,13 +52,11 @@ def execute_query(sql, params=None, fetch_all=False, fetch_one=False):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Execute the query
         if params:
             cursor.execute(sql, params)
         else:
             cursor.execute(sql)
         
-        # Check if this is a SELECT query (has results)
         if cursor.description:
             if fetch_one:
                 result = cursor.fetchone()
@@ -44,7 +67,6 @@ def execute_query(sql, params=None, fetch_all=False, fetch_one=False):
             conn.commit()
             return result
         else:
-            # For INSERT, UPDATE, DELETE queries
             conn.commit()
             return cursor.rowcount
             
@@ -75,11 +97,12 @@ def get_table_names():
         logger.error(f"Error getting table names: {e}")
         return []
 
-def get_table_data(table_name, limit=100):
-    """Get data from a specific table"""
-    sql = f'SELECT * FROM "{table_name}" LIMIT %s'
+def get_table_data(table_name, limit=100, offset=0):
+    """Get data from a specific table with pagination"""
+    validate_table_name(table_name)
+    sql = f'SELECT * FROM "{table_name}" LIMIT %s OFFSET %s'
     try:
-        results = execute_query(sql, [limit], fetch_all=True)
+        results = execute_query(sql, [limit, offset], fetch_all=True)
         return results if results else []
     except Exception as e:
         logger.error(f"Error getting table data for {table_name}: {e}")
@@ -87,8 +110,10 @@ def get_table_data(table_name, limit=100):
 
 def get_table_columns(table_name):
     """Get column information for a specific table"""
+    validate_table_name(table_name)
     sql = """
-        SELECT column_name, data_type, is_nullable
+        SELECT column_name, data_type, is_nullable, 
+               column_default, is_identity
         FROM information_schema.columns
         WHERE table_schema = 'public'
         AND table_name = %s
@@ -100,3 +125,47 @@ def get_table_columns(table_name):
     except Exception as e:
         logger.error(f"Error getting columns for {table_name}: {e}")
         raise
+
+def get_primary_key(table_name):
+    """Get the primary key column name for a table"""
+    validate_table_name(table_name)
+    sql = """
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+            AND tc.table_schema = 'public'
+            AND tc.table_name = %s
+        LIMIT 1
+    """
+    try:
+        result = execute_query(sql, [table_name], fetch_one=True)
+        return result[0] if result else None
+    except Exception as e:
+        logger.error(f"Error getting primary key for {table_name}: {e}")
+        return None
+
+def get_foreign_keys(table_name):
+    """Get foreign key relationships for a table"""
+    validate_table_name(table_name)
+    sql = """
+        SELECT
+            kcu.column_name,
+            ccu.table_name AS foreign_table_name,
+            ccu.column_name AS foreign_column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+            ON ccu.constraint_name = tc.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = 'public'
+            AND tc.table_name = %s
+    """
+    try:
+        results = execute_query(sql, [table_name], fetch_all=True)
+        return results if results else []
+    except Exception as e:
+        logger.error(f"Error getting foreign keys for {table_name}: {e}")
+        return []

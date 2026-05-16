@@ -23,26 +23,60 @@
         {% if selected_table %}
         <div class="form-wrapper">
             <h3>Add to: {{ selected_table }}</h3>
+            <p class="text-muted">{% if pk_column %}Leave "{{ pk_column }}" empty for auto-generation{% endif %}</p>
             
-            <form method="post" id="add-record-form">
+            <form method="post" action="{% url 'add_record' %}">
                 {% csrf_token %}
                 <input type="hidden" name="table_name" value="{{ selected_table }}">
-                <input type="hidden" name="record_data" id="record-data-input">
                 
                 <div id="dynamic-fields" class="dynamic-fields">
                     {% for col in columns_info %}
-                    {% if not forloop.first or not col.0.endswith '_id' %}
-                    <div class="form-group">
-                        <label for="field_{{ col.0 }}">{{ col.0 }}</label>
-                        <input type="text" 
-                               id="field_{{ col.0 }}" 
-                               name="{{ col.0 }}" 
-                               class="form-control"
-                               {% if col.2 == 'NO' %}required{% endif %}
-                               placeholder="Enter {{ col.0 }}">
-                        <small>{{ col.1 }}</small>
-                    </div>
-                    {% endif %}
+                        {% if col.0 != pk_column %}
+                        <div class="form-group">
+                            <label for="field_{{ col.0 }}">
+                                {{ col.0 }}
+                                {% if col.2 == 'NO' and not col.4 %}*{% endif %}
+                            </label>
+                            
+                            {# Check if this is a foreign key #}
+                            {% with is_fk=False %}
+                                {% for fk in fk_relations %}
+                                    {% if fk.0 == col.0 %}
+                                        <select name="{{ col.0 }}" id="field_{{ col.0 }}" class="form-control" 
+                                                {% if col.2 == 'NO' %}required{% endif %}>
+                                            <option value="">Select {{ fk.1 }}...</option>
+                                            {# Options would need to be loaded dynamically #}
+                                        </select>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endwith %}
+                            
+                            {% if 'date' in col.1|lower %}
+                                <input type="date" 
+                                       id="field_{{ col.0 }}" 
+                                       name="{{ col.0 }}" 
+                                       class="form-control"
+                                       {% if col.2 == 'NO' %}required{% endif %}>
+                            {% elif 'int' in col.1|lower or 'numeric' in col.1|lower %}
+                                <input type="number" 
+                                       id="field_{{ col.0 }}" 
+                                       name="{{ col.0 }}" 
+                                       class="form-control"
+                                       step="any"
+                                       {% if col.2 == 'NO' %}required{% endif %}
+                                       placeholder="Enter {{ col.0 }}">
+                            {% else %}
+                                <input type="text" 
+                                       id="field_{{ col.0 }}" 
+                                       name="{{ col.0 }}" 
+                                       class="form-control"
+                                       {% if col.2 == 'NO' %}required{% endif %}
+                                       placeholder="Enter {{ col.0 }}">
+                            {% endif %}
+                            
+                            <small>Type: {{ col.1 }}{% if col.2 == 'NO' %} • Required{% endif %}</small>
+                        </div>
+                        {% endif %}
                     {% endfor %}
                 </div>
                 
@@ -52,22 +86,4 @@
         {% endif %}
     </div>
 </div>
-
-<script>
-    document.getElementById('add-record-form').addEventListener('submit', function(e) {
-        const formData = {};
-        const inputs = document.querySelectorAll('#dynamic-fields input');
-        inputs.forEach(input => {
-            if (input.value.trim() !== '') {
-                let value = input.value.trim();
-                // Try to convert to number if it looks like a number
-                if (!isNaN(value) && value !== '') {
-                    value = Number(value);
-                }
-                formData[input.name] = value;
-            }
-        });
-        document.getElementById('record-data-input').value = JSON.stringify(formData);
-    });
-</script>
 {% endblock %}
