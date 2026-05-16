@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Login{% endblock %}
+{% block title %}Login | PharmaStock{% endblock %}
 
 {% block content %}
 <div class="auth-container">
     <div class="auth-card">
         <div class="auth-header">
-            <h2>🔐 Welcome Back</h2>
-            <p>Login to access Pharmacy Inventory System</p>
+            <h2>💊 PharmaStock</h2>
+            <p>Secure access · Pharmacy Inventory System</p>
         </div>
         
         <form method="post" class="auth-form">
@@ -15,7 +15,7 @@
             
             <div class="form-group">
                 <label for="id_username">Username</label>
-                <input type="text" name="username" id="id_username" class="form-control" required>
+                <input type="text" name="username" id="id_username" class="form-control" required placeholder="pharmacist@pharmastock">
             </div>
             
             <div class="form-group">
@@ -23,7 +23,7 @@
                 <input type="password" name="password" id="id_password" class="form-control" required>
             </div>
             
-            <button type="submit" class="btn btn-primary btn-block">Login</button>
+            <button type="submit" class="btn btn-primary btn-block">Login →</button>
         </form>
         
         <div class="auth-footer">
