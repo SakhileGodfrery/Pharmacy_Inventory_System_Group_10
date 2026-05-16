@@ -11,6 +11,12 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+import dj_database_url
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,12 +35,11 @@ ALLOWED_HOSTS = []
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',
+    'django.contrib.sessions',   # still needed for session framework
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'pharmacy',
@@ -42,7 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',  # still works with cookie engine
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -70,19 +75,22 @@ TEMPLATES = [
 WSGI_APPLICATION = 'pharmacy_inventory.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
+# Database - using Supabase cloud database (via environment variable)
+# The DATABASE_URL must be set in your .env file
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pharmacy_inventory_system',   # matches your new database name
-        'USER': 'postgres',
-        'PASSWORD': 'bruce778', 
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
+
+
+# ========== SESSION CONFIGURATION (No ORM, No Database Table) ==========
+# Use signed cookies instead of database-backed sessions.
+# This avoids any need for the django_session table and thus no migrations.
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+# ========================================================================
 
 
 # Password validation
