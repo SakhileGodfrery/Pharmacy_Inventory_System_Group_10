@@ -1,0 +1,35 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+<h2>Patient Journey (John Smith)</h2>
+<table class="table table-bordered table-sm">
+    <thead>
+        <tr>
+            <th>Patient</th><th>Email</th><th>Phone</th><th>Presc ID</th><th>Date Issued</th><th>Doctor</th>
+            <th>Pharmacist</th><th>License</th><th>Product</th><th>Dosage</th><th>Qty Prescribed</th>
+            <th>Dosage Desc</th><th>Trans ID</th><th>Trans Date</th><th>Qty Sold</th><th>Selling Price</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in results %}
+        <tr>
+            <td>{{ row.patient_name }}</td>
+            <td>{{ row.email }}</td>
+            <td>{{ row.phone }}</td>
+            <td>{{ row.prescription_id }}</td>
+            <td>{{ row.date_issued }}</td>
+            <td>{{ row.doctor_name }}</td>
+            <td>{{ row.pharmacist_name }}</td>
+            <td>{{ row.license_number }}</td>
+            <td>{{ row.product_name }}</td>
+            <td>{{ row.dosage }}</td>
+            <td>{{ row.prescribed_quantity }}</td>
+            <td>{{ row.dosage_description }}</td>
+            <td>{{ row.transaction_id }}</td>
+            <td>{{ row.transaction_date }}</td>
+            <td>{{ row.quantity_sold }}</td>
+            <td>{{ row.selling_price }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

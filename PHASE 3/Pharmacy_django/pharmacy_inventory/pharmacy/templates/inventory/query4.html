@@ -1,0 +1,18 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+<h2>Top 5 Best‑Selling Products</h2>
+<table class="table table-striped">
+    <thead>
+        <tr><th>Product Name</th><th>Total Sold (units)</th><th>Revenue ($)</th></tr>
+    </thead>
+    <tbody>
+        {% for row in results %}
+        <tr>
+            <td>{{ row.product_name }}</td>
+            <td>{{ row.total_sold }}</td>
+            <td>{{ row.revenue }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
