@@ -76,15 +76,9 @@ WSGI_APPLICATION = 'pharmacy_inventory.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-<<<<<<< HEAD
         'NAME': 'pharmacy_inventory',
         'USER': 'postgres',
         'PASSWORD': 'Sakhile123',
-=======
-        'NAME': 'pharmacy_inventory',   # matches your new database name
-        'USER': 'postgres',
-        'PASSWORD': 'Sakhile123', 
->>>>>>> master
         'HOST': 'localhost',
         'PORT': '5432',
     }
