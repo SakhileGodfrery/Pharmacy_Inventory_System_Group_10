@@ -10,7 +10,7 @@
 </head>
 <body>
     <div class="container">
-        {% if user.is_authenticated %}
+        {% if request.session.user_id %}
         <nav class="navbar">
             <div class="nav-brand">
                 <span class="pharma-icon">💊</span>
@@ -23,7 +23,7 @@
                 <a href="{% url 'add_record' %}" class="nav-link">Add Record</a>
                 <a href="{% url 'update_record' %}" class="nav-link">Update Record</a>
                 <div class="user-info">
-                    <span>👤 {{ user.username }}</span>
+                    <span>👤 {{ request.session.user_name }}</span>
                     <a href="{% url 'logout' %}" class="logout-btn">Logout</a>
                 </div>
             </div>

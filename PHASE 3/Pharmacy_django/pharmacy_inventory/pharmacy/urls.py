@@ -2,8 +2,11 @@ from django.urls import path
 from django.shortcuts import redirect
 from . import views
 
+def root_redirect(request):
+    return redirect('dashboard' if request.session.get('user_id') else 'login')
+
 urlpatterns = [
-    path('', lambda request: redirect('dashboard' if request.user.is_authenticated else 'login'), name='root'),
+    path('', root_redirect, name='root'),
     
     # Authentication
     path('login/', views.login_view, name='login'),

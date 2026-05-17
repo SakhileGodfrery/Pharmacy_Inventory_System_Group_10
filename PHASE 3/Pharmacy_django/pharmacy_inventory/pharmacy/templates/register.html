@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="auth-container">
-    <div class="auth-card">
+    <div class="auth-card" style="max-width: 800px;">
         <div class="auth-header">
             <h2>📝 PharmaStock</h2>
             <p>Create your pharmacy management account</p>
@@ -13,38 +13,56 @@
         <form method="post" class="auth-form">
             {% csrf_token %}
             
-            <div class="form-group">
-                <label for="id_username">Username</label>
-                <input type="text" name="username" id="id_username" class="form-control" required>
-                {% if form.username.errors %}
-                <div class="error">{{ form.username.errors }}</div>
-                {% endif %}
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group half">
-                    <label for="id_first_name">First Name</label>
+            <div class="form-two-columns">
+                <div class="form-group">
+                    <label for="id_first_name">First Name *</label>
                     <input type="text" name="first_name" id="id_first_name" class="form-control" required>
                 </div>
-                <div class="form-group half">
-                    <label for="id_last_name">Last Name</label>
+                <div class="form-group">
+                    <label for="id_last_name">Last Name *</label>
                     <input type="text" name="last_name" id="id_last_name" class="form-control" required>
                 </div>
-            </div>
-            
-            <div class="form-group">
-                <label for="id_email">Email</label>
-                <input type="email" name="email" id="id_email" class="form-control" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="id_password1">Password</label>
-                <input type="password" name="password1" id="id_password1" class="form-control" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="id_password2">Confirm Password</label>
-                <input type="password" name="password2" id="id_password2" class="form-control" required>
+                
+                <div class="form-group">
+                    <label for="id_email">Email *</label>
+                    <input type="email" name="email" id="id_email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="id_date_of_birth">Date of Birth *</label>
+                    <input type="date" name="date_of_birth" id="id_date_of_birth" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_phone">Phone</label>
+                    <input type="text" name="phone" id="id_phone" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="id_gender">Gender</label>
+                    <select name="gender" id="id_gender" class="form-control">
+                        <option value="">Select</option>
+                        <option value="M">Male</option>
+                        <option value="F">Female</option>
+                        <option value="O">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_country">Country</label>
+                    <input type="text" name="country" id="id_country" class="form-control">
+                </div>
+                <div class="form-group form-full-width" style="grid-column: span 2;">
+                    <label for="id_address">Address</label>
+                    <textarea name="address" id="id_address" class="form-control" rows="2"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_password1">Password *</label>
+                    <input type="password" name="password1" id="id_password1" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="id_password2">Confirm Password *</label>
+                    <input type="password" name="password2" id="id_password2" class="form-control" required>
+                </div>
             </div>
             
             <button type="submit" class="btn btn-primary btn-block">Register & Start</button>

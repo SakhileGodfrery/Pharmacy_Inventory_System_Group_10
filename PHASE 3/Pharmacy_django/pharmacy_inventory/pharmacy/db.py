@@ -1,12 +1,21 @@
 import psycopg2
-from django.conf import settings
+import os
+from dotenv import load_dotenv
 import logging
-import re
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Valid table names cache
 VALID_TABLES_CACHE = None
+
+def get_db_connection():
+    """Get a database connection using DATABASE_URL from environment"""
+    try:
+        return psycopg2.connect(os.getenv('DATABASE_URL'))
+    except Exception as e:
+        logger.error(f"Database connection error: {e}")
+        raise
 
 def get_valid_tables():
     """Get and cache valid table names to prevent SQL injection"""
@@ -29,21 +38,6 @@ def validate_table_name(table_name):
         raise ValueError(f"Invalid table name: {table_name}")
     return table_name
 
-def get_db_connection():
-    """Get a database connection using Django settings"""
-    try:
-        conn = psycopg2.connect(
-            dbname=settings.DATABASES['default']['NAME'],
-            user=settings.DATABASES['default']['USER'],
-            password=settings.DATABASES['default']['PASSWORD'],
-            host=settings.DATABASES['default']['HOST'],
-            port=settings.DATABASES['default']['PORT']
-        )
-        return conn
-    except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        raise
-
 def execute_query(sql, params=None, fetch_all=False, fetch_one=False):
     """Execute a SQL query and return results"""
     conn = None
@@ -51,12 +45,10 @@ def execute_query(sql, params=None, fetch_all=False, fetch_one=False):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         if params:
             cursor.execute(sql, params)
         else:
             cursor.execute(sql)
-        
         if cursor.description:
             if fetch_one:
                 result = cursor.fetchone()
@@ -69,7 +61,6 @@ def execute_query(sql, params=None, fetch_all=False, fetch_one=False):
         else:
             conn.commit()
             return cursor.rowcount
-            
     except Exception as e:
         if conn:
             conn.rollback()
