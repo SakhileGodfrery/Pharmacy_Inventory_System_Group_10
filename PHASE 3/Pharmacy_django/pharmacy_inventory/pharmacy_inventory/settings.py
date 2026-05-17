@@ -3,28 +3,32 @@ import os
 from dotenv import load_dotenv
 import dj_database_url
 
+# Load environment variables from .env file (local development)
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-b(^)a0x_$e77io2&(h_$uni#3od2f!vbq8kt(yl4+h-3xxe1ob'
-DEBUG = True
-ALLOWED_HOSTS = []
+# Security – read from environment
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-b(^)a0x_$e77io2&(h_$uni#3od2f!vbq8kt(yl4+h-3xxe1ob')
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
 
 # Apps – messages is added back (no ORM tables needed)
 INSTALLED_APPS = [
+    'whitenoise.runserver_nostatic',   # for static files in development
     'django.contrib.staticfiles',
     'django.contrib.sessions',
-    'django.contrib.messages',      # required for messages.error()
+    'django.contrib.messages',
     'pharmacy',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',   # serve static files efficiently
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',   # enables messages
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -38,7 +42,7 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
-                'django.contrib.messages.context_processors.messages',  # for template messages
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -61,10 +65,11 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
+# Static files – using WhiteNoise for production
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
