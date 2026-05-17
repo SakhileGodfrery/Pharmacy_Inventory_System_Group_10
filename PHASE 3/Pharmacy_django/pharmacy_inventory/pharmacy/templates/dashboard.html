@@ -5,7 +5,7 @@
 {% block content %}
 <div class="dashboard">
     <div class="dashboard-header">
-        <h2>Welcome back, {{ user.first_name|default:user.username }}!</h2>
+        <h2>Welcome back, {{ request.session.user_name }}!</h2>
         <p>⚡ Real‑time inventory intelligence | PharmaStock v2.0</p>
     </div>
     

@@ -1,23 +1,102 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
-from .forms import RegistrationForm, LoginForm, QueryForm, UpdateRecordForm
+from .forms import RegistrationForm, AddRecordForm, QueryForm, UpdateRecordForm
 from .db import (execute_query, get_table_names, get_table_data, 
                  get_table_columns, get_primary_key, get_foreign_keys,
-                 validate_table_name,get_db_connection)
+                 validate_table_name, get_db_connection)
+from django.db import connection
 import json
 import logging
 import re
 
-# Create your views here.
-
 logger = logging.getLogger(__name__)
 
-# Pre-defined SQL Queries from the original file
+# ==================== Custom authentication (raw SQL) ====================
+def login_view(request):
+    if request.session.get('user_id'):
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT users_id, first_name, last_name, roles, email
+                FROM users
+                WHERE email = %s AND password_hash = %s
+            """, [email, password])
+            user = cursor.fetchone()
+        if user:
+            request.session['user_id'] = user[0]
+            request.session['user_name'] = f"{user[1]} {user[2]}"
+            request.session['user_role'] = user[3]
+            request.session['user_email'] = user[4]
+            messages.success(request, f'Welcome back, {user[1]}!')
+            return redirect('dashboard')
+        else:
+            messages.error(request, 'Invalid email or password.')
+    
+    return render(request, 'login.html')
+
+def register_view(request):
+    if request.session.get('user_id'):
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            first_name = form.cleaned_data['first_name']
+            last_name = form.cleaned_data['last_name']
+            email = form.cleaned_data['email']
+            date_of_birth = form.cleaned_data['date_of_birth']
+            phone = form.cleaned_data.get('phone', '')
+            address = form.cleaned_data.get('address', '')
+            gender = form.cleaned_data.get('gender', '')
+            country = form.cleaned_data.get('country', '')
+            password = form.cleaned_data['password1']
+            
+            if not date_of_birth:
+                messages.error(request, 'Date of birth is required.')
+                return render(request, 'register.html', {'form': form})
+            
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO users 
+                        (first_name, last_name, email, date_of_birth, phone, home_address, 
+                         gender, country, password_hash, roles, reg_date)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'PATIENT', NOW())
+                    """, [first_name, last_name, email, date_of_birth, phone, address,
+                          gender, country, password])
+                messages.success(request, 'Registration successful. Please log in.')
+                return redirect('login')
+            except Exception as e:
+                messages.error(request, f'Registration error: {e}')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = RegistrationForm()
+    
+    return render(request, 'register.html', {'form': form})
+
+def logout_view(request):
+    request.session.flush()
+    messages.info(request, 'You have been logged out.')
+    return redirect('login')
+
+def dashboard(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    context = {
+        'user_name': request.session.get('user_name'),
+        'user_role': request.session.get('user_role'),
+    }
+    return render(request, 'dashboard.html', context)
+
+# ==================== Pre‑defined SQL Queries ====================
 PREDEFINED_QUERIES = {
     '1': """
         SELECT 
@@ -298,77 +377,23 @@ PREDEFINED_QUERIES = {
     """
 }
 
-# Authentication Views
-def login_view(request):
-    if request.user.is_authenticated:
-        return redirect('dashboard')
-    
-    if request.method == 'POST':
-        form = LoginForm(request.POST)
-        if form.is_valid():
-            username = form.cleaned_data['username']
-            password = form.cleaned_data['password']
-            user = authenticate(request, username=username, password=password)
-            if user is not None:
-                login(request, user)
-                messages.success(request, f'Welcome back, {username}!')
-                return redirect('dashboard')
-            else:
-                messages.error(request, 'Invalid username or password.')
-    else:
-        form = LoginForm()
-    
-    return render(request, 'login.html', {'form': form})
-
-def register_view(request):
-    if request.user.is_authenticated:
-        return redirect('dashboard')
-    
-    if request.method == 'POST':
-        form = RegistrationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            messages.success(request, 'Registration successful! Welcome to the Pharmacy System.')
-            return redirect('dashboard')
-        else:
-            messages.error(request, 'Please correct the errors below.')
-    else:
-        form = RegistrationForm()
-    
-    return render(request, 'register.html', {'form': form})
-
-def logout_view(request):
-    logout(request)
-    messages.info(request, 'You have been logged out.')
-    return redirect('login')
-
-@login_required
-def dashboard(request):
-    """Main dashboard view"""
-    context = {
-        'user': request.user,
-    }
-    return render(request, 'dashboard.html', context)
-
+# ==================== Helper functions ====================
 def is_safe_query(sql):
     """Check if SQL query is safe (only SELECT statements)"""
     sql_upper = sql.strip().upper()
     if not sql_upper.startswith('SELECT'):
         return False, "Only SELECT queries are allowed"
-    
-    # Block dangerous keywords
     dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 
                          'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE']
     for keyword in dangerous_keywords:
         if keyword in sql_upper:
             return False, f"Dangerous keyword '{keyword}' not allowed"
-    
     return True, "OK"
 
-@login_required
+# ==================== Views (data, queries, CRUD, API) ====================
 def view_data(request):
-    """View database tables with pagination"""
+    if not request.session.get('user_id'):
+        return redirect('login')
     tables = get_table_names()
     selected_table = request.GET.get('table', '')
     page = request.GET.get('page', 1)
@@ -378,23 +403,17 @@ def view_data(request):
     
     if selected_table and tables:
         try:
-            # Get total count
             validate_table_name(selected_table)
             count_sql = f'SELECT COUNT(*) FROM "{selected_table}"'
             total_count_result = execute_query(count_sql, fetch_one=True)
             total_count = total_count_result[0] if total_count_result else 0
-            
-            # Get paginated data
             per_page = 50
             offset = (int(page) - 1) * per_page
             table_data = get_table_data(selected_table, limit=per_page, offset=offset)
             columns_info = get_table_columns(selected_table)
             columns = [col[0] for col in columns_info]
-            
-            # Create paginator
             paginator = Paginator(range(total_count), per_page)
             page_obj = paginator.get_page(page)
-            
         except Exception as e:
             messages.error(request, f'Error loading table: {e}')
             page_obj = None
@@ -412,9 +431,9 @@ def view_data(request):
     }
     return render(request, 'view_data.html', context)
 
-@login_required
 def run_queries(request):
-    """Run pre-defined or custom SQL queries"""
+    if not request.session.get('user_id'):
+        return redirect('login')
     results = None
     columns = None
     error = None
@@ -423,9 +442,7 @@ def run_queries(request):
     if request.method == 'POST':
         selected_query = request.POST.get('selected_query')
         custom_sql = request.POST.get('custom_sql', '')
-        
         if selected_query == '20' and custom_sql:
-            # Validate custom SQL for safety
             is_safe, message = is_safe_query(custom_sql)
             if not is_safe:
                 error = message
@@ -443,17 +460,14 @@ def run_queries(request):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(executed_query)
-                
                 if cursor.description:
                     columns = [desc[0] for desc in cursor.description]
                     results = cursor.fetchall()
                     messages.success(request, f'Query executed successfully. {len(results)} rows returned.')
                 else:
                     messages.info(request, 'Query executed successfully but returned no results.')
-                
                 cursor.close()
                 conn.close()
-                
             except Exception as e:
                 error = str(e)
                 messages.error(request, f'Query error: {e}')
@@ -467,27 +481,17 @@ def run_queries(request):
     }
     return render(request, 'run_queries.html', context)
 
-@login_required
 def add_record(request):
-    """Add a new record to a table"""
+    if not request.session.get('user_id'):
+        return redirect('login')
     tables = get_table_names()
-    
     if request.method == 'POST':
         table_name = request.POST.get('table_name')
-        
         try:
             validate_table_name(table_name)
-            columns_info = get_table_columns(table_name)
-            fk_relations = get_foreign_keys(table_name)
-            
-            # Build record data from POST
             record_data = {}
             for key, value in request.POST.items():
                 if key not in ['csrfmiddlewaretoken', 'table_name'] and value.strip():
-                    # Check if this is a foreign key
-                    is_fk = any(fk[0] == key for fk in fk_relations)
-                    
-                    # Convert value types
                     if value.isdigit():
                         record_data[key] = int(value)
                     else:
@@ -495,34 +499,27 @@ def add_record(request):
                             record_data[key] = float(value)
                         except ValueError:
                             record_data[key] = value
-            
             if not record_data:
                 messages.error(request, 'Please provide at least one field value')
                 return redirect(f'{request.path}?table={table_name}')
-            
-            # Build INSERT query
             columns = list(record_data.keys())
             placeholders = ['%s'] * len(columns)
             values = [record_data[col] for col in columns]
-            
             sql = f'INSERT INTO "{table_name}" ({", ".join(columns)}) VALUES ({", ".join(placeholders)})'
-            
             rows_affected = execute_query(sql, values)
             if rows_affected > 0:
                 messages.success(request, f'Record added successfully to {table_name}!')
             else:
                 messages.error(request, 'Failed to insert record')
-                
         except Exception as e:
             messages.error(request, f'Error adding record: {e}')
-        
         return redirect(f'{request.path}?table={table_name}')
     
-    # GET request - show form
     selected_table = request.GET.get('table', '')
     columns_info = []
     fk_relations = []
     pk_column = None
+    fk_options = {}
     
     if selected_table:
         try:
@@ -530,6 +527,35 @@ def add_record(request):
             columns_info = get_table_columns(selected_table)
             fk_relations = get_foreign_keys(selected_table)
             pk_column = get_primary_key(selected_table)
+            
+            # For each foreign key, fetch options from the referenced table
+            for fk in fk_relations:
+                fk_column = fk[0]
+                ref_table = fk[1]
+                ref_pk = get_primary_key(ref_table)
+                # Find a suitable display column
+                with connection.cursor() as cursor:
+                    cursor.execute(f"""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name = '{ref_table}' 
+                        AND (column_name LIKE '%name' OR column_name = 'first_name' OR column_name = 'supplier_name' OR column_name = 'product_name')
+                        LIMIT 1
+                    """)
+                    display_col = cursor.fetchone()
+                    if display_col:
+                        display_col = display_col[0]
+                    else:
+                        # fallback to first column
+                        cursor.execute(f"""
+                            SELECT column_name FROM information_schema.columns 
+                            WHERE table_name = '{ref_table}' 
+                            ORDER BY ordinal_position LIMIT 1
+                        """)
+                        display_col = cursor.fetchone()[0]
+                # Fetch options
+                options_sql = f'SELECT "{ref_pk}", "{display_col}" FROM "{ref_table}" ORDER BY "{display_col}"'
+                options = execute_query(options_sql, fetch_all=True)
+                fk_options[fk_column] = options
         except Exception as e:
             messages.error(request, f'Error loading columns: {e}')
     
@@ -539,12 +565,13 @@ def add_record(request):
         'columns_info': columns_info,
         'fk_relations': fk_relations,
         'pk_column': pk_column,
+        'fk_options': fk_options,
     }
     return render(request, 'add_record.html', context)
 
-@login_required
 def update_record(request):
-    """Update an existing record"""
+    if not request.session.get('user_id'):
+        return redirect('login')
     tables = get_table_names()
     result = None
     error = None
@@ -552,15 +579,11 @@ def update_record(request):
     if request.method == 'POST':
         table_name = request.POST.get('table_name')
         record_id = request.POST.get('record_id')
-        
         try:
             validate_table_name(table_name)
             pk_column = get_primary_key(table_name)
-            
             if not pk_column:
                 raise ValueError(f"No primary key found for table {table_name}")
-            
-            # Build update data from POST
             update_data = {}
             for key, value in request.POST.items():
                 if key not in ['csrfmiddlewaretoken', 'table_name', 'record_id'] and value.strip():
@@ -571,33 +594,25 @@ def update_record(request):
                             update_data[key] = float(value)
                         except ValueError:
                             update_data[key] = value
-            
             if not update_data:
                 raise ValueError("Please provide at least one field to update")
-            
-            # Build UPDATE query
             set_clauses = [f'"{col}" = %s' for col in update_data.keys()]
             values = list(update_data.values())
             values.append(record_id)
-            
             sql = f'UPDATE "{table_name}" SET {", ".join(set_clauses)} WHERE "{pk_column}" = %s'
-            
             rows_affected = execute_query(sql, values)
             if rows_affected > 0:
                 result = f'Successfully updated {rows_affected} record(s) in {table_name}'
                 messages.success(request, result)
             else:
                 error = f'No record found with {pk_column} = {record_id}'
-                
         except Exception as e:
             error = str(e)
             messages.error(request, f'Error updating record: {e}')
     
-    # Get existing record data for display
     record_data = None
     selected_table = request.GET.get('table', '')
     record_id = request.GET.get('id', '')
-    
     if selected_table and record_id:
         try:
             validate_table_name(selected_table)
@@ -623,22 +638,20 @@ def update_record(request):
     }
     return render(request, 'update_record.html', context)
 
-@login_required
 @csrf_exempt
 def api_get_table_schema(request):
-    """API endpoint to get table schema for dynamic form generation"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'success': False, 'error': 'Not authenticated'})
     if request.method == 'GET':
         table_name = request.GET.get('table', '')
         if table_name:
             try:
                 columns = get_table_columns(table_name)
-                # Exclude auto-increment columns (serial/bigserial)
                 schema = []
                 for col in columns:
                     col_name = col[0]
                     data_type = col[1]
                     is_nullable = col[2]
-                    # Skip primary key columns for insert
                     if col_name.endswith('_id') and 'serial' in data_type.lower():
                         continue
                     schema.append({
@@ -651,20 +664,22 @@ def api_get_table_schema(request):
                 return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
-@login_required
 @csrf_exempt
 def api_get_record(request):
-    """API endpoint to get a record for editing"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'success': False, 'error': 'Not authenticated'})
     if request.method == 'GET':
         table_name = request.GET.get('table', '')
         record_id = request.GET.get('id', '')
-        
         if table_name and record_id:
             try:
-                pk_column = f"{table_name[:-1]}_id" if table_name.endswith('s') else 'id'
-                sql = f"SELECT * FROM {table_name} WHERE {pk_column} = %s"
+                # Try to infer primary key column
+                pk_column = get_primary_key(table_name)
+                if not pk_column:
+                    # fallback
+                    pk_column = f"{table_name[:-1]}_id" if table_name.endswith('s') else 'id'
+                sql = f'SELECT * FROM "{table_name}" WHERE "{pk_column}" = %s'
                 result = execute_query(sql, [record_id], fetch_one=True)
-                
                 if result:
                     columns = get_table_columns(table_name)
                     record_dict = {}
@@ -677,49 +692,30 @@ def api_get_record(request):
                 return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
-@login_required
 @csrf_exempt
 def api_update_record(request):
-    """API endpoint to update a record"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'success': False, 'error': 'Not authenticated'})
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             table_name = data.get('table_name')
             record_id = data.get('record_id')
             update_data = data.get('update_data', {})
-            
             if not table_name or not record_id or not update_data:
                 return JsonResponse({'success': False, 'error': 'Missing required fields'})
-            
-            # Get primary key column
-            columns_info = get_table_columns(table_name)
-            pk_column = None
-            
-            # Try to find primary key column
-            for col in columns_info:
-                col_name = col[0]
-                if col_name == 'id' or col_name == f"{table_name[:-1]}_id" or col_name == f"{table_name}_id":
-                    pk_column = col_name
-                    break
-            
+            pk_column = get_primary_key(table_name)
             if not pk_column:
-                pk_column = columns_info[0][0]  # Use first column as fallback
-            
-            # Build UPDATE query
-            set_clauses = [f"{col} = %s" for col in update_data.keys()]
+                raise ValueError(f"No primary key found for {table_name}")
+            set_clauses = [f'"{col}" = %s' for col in update_data.keys()]
             values = list(update_data.values())
             values.append(record_id)
-            
-            sql = f'UPDATE "{table_name}" SET {", ".join(set_clauses)} WHERE {pk_column} = %s'
-            
+            sql = f'UPDATE "{table_name}" SET {", ".join(set_clauses)} WHERE "{pk_column}" = %s'
             rows_affected = execute_query(sql, values)
-            
             if rows_affected > 0:
                 return JsonResponse({'success': True, 'message': f'Updated {rows_affected} record(s)'})
             else:
                 return JsonResponse({'success': False, 'error': 'No record found or no changes made'})
-                
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
-    
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
